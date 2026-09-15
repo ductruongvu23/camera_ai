@@ -33,34 +33,52 @@ final class GeminiService {
             badge: "Mới 3.8"
         ),
         GeminiModelOption(
-            id: "gemini-3.5-flash",
-            displayName: "Gemini 3.5 Flash",
-            description: "Tiêu chuẩn • Thế hệ 3.5 cực kỳ ổn định & nhanh",
-            badge: "3.5 Flash"
-        ),
-        GeminiModelOption(
             id: "gemini-3.7-flash",
             displayName: "Gemini 3.7 Flash",
             description: "Thế hệ 3.7 • Tối ưu hóa suy luận và bóc tách tài liệu",
             badge: "3.7 Flash"
         ),
         GeminiModelOption(
-            id: "gemini-3.8-pro",
-            displayName: "Gemini 3.8 Pro",
-            description: "Flagship 3.8 • Suy luận sâu cho tài liệu phức tạp",
-            badge: "Flagship 3.8"
+            id: "gemini-3.6-flash",
+            displayName: "Gemini 3.6 Flash",
+            description: "Thế hệ 3.6 • Mô hình Flash ổn định",
+            badge: "3.6 Flash"
         ),
         GeminiModelOption(
-            id: "gemini-3.5-pro",
-            displayName: "Gemini 3.5 Pro",
-            description: "Chuyên sâu • Phân tích logic và văn bản học thuật",
-            badge: "3.5 Pro"
+            id: "gemini-3.5-flash",
+            displayName: "Gemini 3.5 Flash",
+            description: "Tiêu chuẩn • Thế hệ 3.5 cực kỳ ổn định & nhanh",
+            badge: "3.5 Flash"
+        ),
+        GeminiModelOption(
+            id: "gemini-3.5-flash-lite",
+            displayName: "Gemini 3.5 Flash-Lite",
+            description: "Siêu nhẹ • Tốc độ nhanh nhất, tiết kiệm chi phí",
+            badge: "Lite"
+        ),
+        GeminiModelOption(
+            id: "gemini-flash-latest",
+            displayName: "Gemini Flash Latest",
+            description: "Tự động trỏ tới bản Flash mới nhất của Google",
+            badge: "Auto"
+        ),
+        GeminiModelOption(
+            id: "gemini-3.1-pro-preview",
+            displayName: "Gemini 3.1 Pro",
+            description: "Flagship 3.1 Pro • Suy luận sâu cho tài liệu phức tạp",
+            badge: "Pro"
         ),
         GeminiModelOption(
             id: "gemini-2.5-flash",
             displayName: "Gemini 2.5 Flash",
-            description: "Thế hệ 2.5 • Dự phòng",
+            description: "Thế hệ 2.5 • Phân tích bài giảng nhanh",
             badge: "2.5 Flash"
+        ),
+        GeminiModelOption(
+            id: "gemini-2.5-pro",
+            displayName: "Gemini 2.5 Pro",
+            description: "Thế hệ 2.5 Pro • Phân tích logic và văn bản học thuật",
+            badge: "2.5 Pro"
         )
     ]
 
@@ -165,11 +183,14 @@ final class GeminiService {
         // Candidate fallback order: user chosen model -> 3.8-flash -> 3.5-flash -> 3.7-flash -> 3.8-pro -> 3.5-pro -> 2.5-flash
         let fallbackSequence = [
             "gemini-3.8-flash",
-            "gemini-3.5-flash",
             "gemini-3.7-flash",
-            "gemini-3.8-pro",
-            "gemini-3.5-pro",
-            "gemini-2.5-flash"
+            "gemini-3.6-flash",
+            "gemini-3.5-flash",
+            "gemini-3.5-flash-lite",
+            "gemini-flash-latest",
+            "gemini-2.5-flash",
+            "gemini-3.1-pro-preview",
+            "gemini-2.5-pro"
         ]
         var candidateModels = [cleanPrimary]
         for fb in fallbackSequence {
