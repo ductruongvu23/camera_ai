@@ -27,40 +27,40 @@ final class GeminiService {
 
     static let availableModels: [GeminiModelOption] = [
         GeminiModelOption(
-            id: "gemini-2.0-flash",
-            displayName: "Gemini 2.0 Flash",
-            description: "Khuyên dùng • Tốc độ siêu tốc, ổn định nhất hiện tại",
-            badge: "Khuyên dùng"
+            id: "gemini-3.8-flash",
+            displayName: "Gemini 3.8 Flash",
+            description: "Khuyên dùng • Thế hệ 3.8 mới nhất, tốc độ cao nhất",
+            badge: "Mới 3.8"
         ),
         GeminiModelOption(
-            id: "gemini-1.5-flash",
-            displayName: "Gemini 1.5 Flash",
-            description: "Rất ổn định • Hỗ trợ mọi API key miễn phí",
-            badge: "Ổn định"
+            id: "gemini-3.5-flash",
+            displayName: "Gemini 3.5 Flash",
+            description: "Tiêu chuẩn • Thế hệ 3.5 cực kỳ ổn định & nhanh",
+            badge: "3.5 Flash"
+        ),
+        GeminiModelOption(
+            id: "gemini-3.7-flash",
+            displayName: "Gemini 3.7 Flash",
+            description: "Thế hệ 3.7 • Tối ưu hóa suy luận và bóc tách tài liệu",
+            badge: "3.7 Flash"
+        ),
+        GeminiModelOption(
+            id: "gemini-3.8-pro",
+            displayName: "Gemini 3.8 Pro",
+            description: "Flagship 3.8 • Suy luận sâu cho tài liệu phức tạp",
+            badge: "Flagship 3.8"
+        ),
+        GeminiModelOption(
+            id: "gemini-3.5-pro",
+            displayName: "Gemini 3.5 Pro",
+            description: "Chuyên sâu • Phân tích logic và văn bản học thuật",
+            badge: "3.5 Pro"
         ),
         GeminiModelOption(
             id: "gemini-2.5-flash",
             displayName: "Gemini 2.5 Flash",
-            description: "Thế hệ 2.5 • Phân tích chi tiết và nhanh",
-            badge: "Mới"
-        ),
-        GeminiModelOption(
-            id: "gemini-3.0-flash",
-            displayName: "Gemini 3.0 Flash",
-            description: "Thế hệ 3.x • Tự động fallback nếu endpoint chưa mở",
-            badge: "Mới 3.x"
-        ),
-        GeminiModelOption(
-            id: "gemini-3.0-pro",
-            displayName: "Gemini 3.0 Pro",
-            description: "Thế hệ 3.x cao cấp • Suy luận sâu",
-            badge: "Flagship 3.0"
-        ),
-        GeminiModelOption(
-            id: "gemini-1.5-pro",
-            displayName: "Gemini 1.5 Pro",
-            description: "Chuyên sâu • Phân tích logic và văn bản học thuật",
-            badge: "Chuyên sâu"
+            description: "Thế hệ 2.5 • Dự phòng",
+            badge: "2.5 Flash"
         )
     ]
 
@@ -74,14 +74,76 @@ final class GeminiService {
         }
     }
 
-    /// Retrieve the selected model ID from UserDefaults (defaults to gemini-2.0-flash).
+    /// Retrieve the selected model ID from UserDefaults (defaults to gemini-3.8-flash).
     static var storedModelId: String {
         get {
             let saved = UserDefaults.standard.string(forKey: modelStorageKey) ?? ""
-            return saved.isEmpty ? "gemini-2.0-flash" : saved
+            let clean = cleanModelId(saved)
+            // Automatically upgrade legacy/unavailable models like 3.0 or 2.0 to 3.8-flash
+            if clean.isEmpty || clean == "gemini-3.0-flash" || clean == "gemini-3.0-pro" || clean == "gemini-2.0-flash" || clean == "gemini-1.5-flash" {
+                return "gemini-3.8-flash"
+            }
+            return clean
         }
         set {
-            UserDefaults.standard.set(newValue.trimmingCharacters(in: .whitespacesAndNewlines), forKey: modelStorageKey)
+            let clean = cleanModelId(newValue)
+            UserDefaults.standard.set(clean, forKey: modelStorageKey)
+        }
+    }
+
+    /// Helper to strip any 'models/' prefix or whitespace from model IDs
+    static func cleanModelId(_ raw: String) -> String {
+        var clean = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        while clean.hasPrefix("models/") {
+            clean = String(clean.dropFirst(7))
+        }
+        return clean
+    }
+
+    /// Dynamically query Google AI Studio ListModels endpoint for models available to this API key.
+    static func fetchLiveModels(apiKey: String) async -> [GeminiModelOption] {
+        let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !key.isEmpty,
+              let url = URL(string: "https://generativelanguage.googleapis.com/v1beta/models?key=\(key)") else {
+            return availableModels
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 10
+
+        guard let (data, response) = try? await URLSession.shared.data(for: request),
+              let httpResponse = response as? HTTPURLResponse,
+              httpResponse.statusCode == 200,
+              let decoded = try? JSONDecoder().decode(GoogleListModelsResponse.self, from: data),
+              let models = decoded.models else {
+            return availableModels
+        }
+
+        let validModels = models.filter { item in
+            guard let methods = item.supportedGenerationMethods else { return false }
+            return methods.contains("generateContent")
+        }
+
+        guard !validModels.isEmpty else { return availableModels }
+
+        let options: [GeminiModelOption] = validModels.map { item in
+            let cleanId = cleanModelId(item.name)
+            let isFlash = cleanId.contains("flash")
+            let badge = isFlash ? "Flash" : "Pro"
+            return GeminiModelOption(
+                id: cleanId,
+                displayName: item.displayName ?? cleanId,
+                description: item.description ?? "Hỗ trợ generateContent trên API Key của bạn",
+                badge: badge
+            )
+        }
+
+        // Sort Flash models first, with highest versions prioritized
+        return options.sorted { a, b in
+            if a.id.contains("flash") && !b.id.contains("flash") { return true }
+            if !a.id.contains("flash") && b.id.contains("flash") { return false }
+            return a.id > b.id
         }
     }
 
@@ -97,11 +159,19 @@ final class GeminiService {
             throw GeminiError.missingApiKey
         }
 
-        let primaryModelId = (modelIdOverride ?? Self.storedModelId).trimmingCharacters(in: .whitespacesAndNewlines)
+        let rawModelId = (modelIdOverride ?? Self.storedModelId)
+        let cleanPrimary = Self.cleanModelId(rawModelId)
 
-        // Candidate fallback order: user chosen model -> gemini-2.0-flash -> gemini-1.5-flash -> gemini-2.5-flash -> gemini-1.5-pro
-        let fallbackSequence = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-flash", "gemini-1.5-pro"]
-        var candidateModels = [primaryModelId]
+        // Candidate fallback order: user chosen model -> 3.8-flash -> 3.5-flash -> 3.7-flash -> 3.8-pro -> 3.5-pro -> 2.5-flash
+        let fallbackSequence = [
+            "gemini-3.8-flash",
+            "gemini-3.5-flash",
+            "gemini-3.7-flash",
+            "gemini-3.8-pro",
+            "gemini-3.5-pro",
+            "gemini-2.5-flash"
+        ]
+        var candidateModels = [cleanPrimary]
         for fb in fallbackSequence {
             if !candidateModels.contains(fb) {
                 candidateModels.append(fb)
@@ -112,7 +182,10 @@ final class GeminiService {
 
         for modelId in candidateModels {
             do {
-                return try await callGeminiAPI(text: text, modelId: modelId, apiKey: key)
+                let response = try await callGeminiAPI(text: text, modelId: modelId, apiKey: key)
+                // Persist the working model
+                Self.storedModelId = modelId
+                return response
             } catch GeminiError.modelUnavailable(let failedModel, let msg) {
                 print("Gemini model \(failedModel) unavailable (\(msg)), trying fallback...")
                 lastError = GeminiError.modelUnavailable(modelId: failedModel, message: msg)
@@ -125,11 +198,24 @@ final class GeminiService {
             }
         }
 
+        // Dynamic fallback: Query Google's live list of models for this API key
+        let liveOptions = await Self.fetchLiveModels(apiKey: key)
+        for live in liveOptions where !candidateModels.contains(live.id) {
+            do {
+                let response = try await callGeminiAPI(text: text, modelId: live.id, apiKey: key)
+                Self.storedModelId = live.id
+                return response
+            } catch {
+                continue
+            }
+        }
+
         throw lastError
     }
 
     private func callGeminiAPI(text: String, modelId: String, apiKey: String) async throws -> GeminiResponse {
-        guard let url = URL(string: "https://generativelanguage.googleapis.com/v1beta/models/\(modelId):generateContent?key=\(apiKey)") else {
+        let cleanId = Self.cleanModelId(modelId)
+        guard let url = URL(string: "https://generativelanguage.googleapis.com/v1beta/models/\(cleanId):generateContent?key=\(apiKey)") else {
             throw GeminiError.invalidEndpoint
         }
 
@@ -173,11 +259,14 @@ final class GeminiService {
             }
 
             let lower = errorMsg.lowercased()
-            if httpResponse.statusCode == 404 || lower.contains("not found") || lower.contains("not supported") || lower.contains("models/") {
-                throw GeminiError.modelUnavailable(modelId: modelId, message: errorMsg)
+            if httpResponse.statusCode == 404 || lower.contains("not found") || lower.contains("not supported") || lower.contains("models/") || lower.contains("listmodels") {
+                throw GeminiError.modelUnavailable(modelId: cleanId, message: errorMsg)
             }
 
             if httpResponse.statusCode == 400 {
+                if lower.contains("model") || lower.contains("supported") {
+                    throw GeminiError.modelUnavailable(modelId: cleanId, message: errorMsg)
+                }
                 throw GeminiError.httpError(400)
             } else if httpResponse.statusCode == 403 {
                 throw GeminiError.httpError(403)
@@ -334,6 +423,19 @@ private struct GeminiAPIEnvelope: Codable {
 
     struct Part: Codable {
         let text: String?
+    }
+}
+
+// MARK: - ListModels Response Structure
+
+struct GoogleListModelsResponse: Codable {
+    let models: [GoogleModelItem]?
+
+    struct GoogleModelItem: Codable {
+        let name: String
+        let displayName: String?
+        let description: String?
+        let supportedGenerationMethods: [String]?
     }
 }
 

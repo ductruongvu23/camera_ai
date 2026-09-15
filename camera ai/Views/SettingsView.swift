@@ -10,7 +10,10 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var apiKeyInput: String = ""
-    @State private var selectedModelId: String = "gemini-2.5-flash"
+    @State private var selectedModelId: String = "gemini-3.8-flash"
+    @State private var liveModels: [GeminiModelOption] = GeminiService.availableModels
+    @State private var isScanningModels: Bool = false
+    @State private var scanResultText: String? = nil
     @State private var showSavedAlert: Bool = false
     @State private var isShowingKey: Bool = false
 
@@ -42,6 +45,15 @@ struct SettingsView: View {
             .onAppear {
                 apiKeyInput = GeminiService.storedApiKey
                 selectedModelId = GeminiService.storedModelId
+                liveModels = GeminiService.availableModels
+                if !apiKeyInput.isEmpty {
+                    Task {
+                        let fetched = await GeminiService.fetchLiveModels(apiKey: apiKeyInput)
+                        if !fetched.isEmpty {
+                            liveModels = fetched
+                        }
+                    }
+                }
             }
             .alert("Đã Lưu Thành Công", isPresented: $showSavedAlert) {
                 Button("OK") {
@@ -87,7 +99,7 @@ struct SettingsView: View {
                 .font(.system(.title2, design: .rounded).bold())
                 .foregroundStyle(.white)
 
-            Text("Tùy chỉnh mô hình Gemini và API Key để tối ưu tốc độ & chất lượng tóm tắt.")
+            Text("Hệ thống hỗ trợ thế hệ Gemini 3.x mới nhất và tự động dò tìm model khả dụng trên API Key của bạn.")
                 .font(.subheadline)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.white.opacity(0.7))
@@ -101,12 +113,54 @@ struct SettingsView: View {
             HStack {
                 Image(systemName: "cpu.fill")
                     .foregroundStyle(Color(hex: "00CEC9"))
-                Text("Mô Hình Gemini AI (Phiên bản 2026)")
+                Text("Mô Hình Gemini AI (Thế hệ 3.x)")
                     .font(.subheadline.bold())
                     .foregroundStyle(.white.opacity(0.9))
+
+                Spacer()
+
+                // Live Scan Button
+                Button {
+                    Task {
+                        isScanningModels = true
+                        scanResultText = nil
+                        let fetched = await GeminiService.fetchLiveModels(apiKey: apiKeyInput)
+                        liveModels = fetched
+                        isScanningModels = false
+                        scanResultText = "Đã quét được \(fetched.count) mô hình khả dụng!"
+                        if !fetched.contains(where: { $0.id == selectedModelId }), let first = fetched.first {
+                            selectedModelId = first.id
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        if isScanningModels {
+                            ProgressView()
+                                .controlSize(.mini)
+                                .tint(Color(hex: "00CEC9"))
+                        } else {
+                            Image(systemName: "arrow.triangle.2.circlepath")
+                                .font(.caption2)
+                        }
+                        Text("Quét Google")
+                            .font(.caption2.bold())
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color(hex: "00CEC9").opacity(0.15))
+                    .foregroundStyle(Color(hex: "00CEC9"))
+                    .clipShape(Capsule())
+                }
+                .disabled(apiKeyInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isScanningModels)
             }
 
-            ForEach(GeminiService.availableModels) { model in
+            if let scanResultText {
+                Text(scanResultText)
+                    .font(.caption2.bold())
+                    .foregroundStyle(Color(hex: "55EFC4"))
+            }
+
+            ForEach(liveModels) { model in
                 ModelOptionRow(
                     model: model,
                     isSelected: selectedModelId == model.id
@@ -122,7 +176,7 @@ struct SettingsView: View {
                 Image(systemName: "pencil.and.outline")
                     .font(.caption)
                     .foregroundStyle(Color(hex: "FD79A8"))
-                TextField("Tùy chỉnh model ID (ví dụ: gemini-3.5-pro)", text: $selectedModelId)
+                TextField("Tùy chỉnh model ID (ví dụ: gemini-3.8-flash)", text: $selectedModelId)
                     .font(.caption)
                     .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)
