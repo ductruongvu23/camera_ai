@@ -140,12 +140,16 @@ struct HomeView: View {
                                         ForEach(Array(viewModel.selectedImages.enumerated()), id: \.offset) { index, image in
                                             SlideThumbnailCard(
                                                 index: index + 1,
-                                                image: image
-                                            ) {
-                                                withAnimation {
-                                                    viewModel.removeImage(at: index)
+                                                image: image,
+                                                onCrop: {
+                                                    viewModel.startCropping(at: index)
+                                                },
+                                                onDelete: {
+                                                    withAnimation {
+                                                        viewModel.removeImage(at: index)
+                                                    }
                                                 }
-                                            }
+                                            )
                                         }
                                     }
                                     .padding(.horizontal, 20)
@@ -268,6 +272,13 @@ struct HomeView: View {
             .sheet(isPresented: $viewModel.showSettings) {
                 SettingsView()
             }
+            .fullScreenCover(isPresented: $viewModel.showCropEditor) {
+                if let index = viewModel.imageIndexToCrop, viewModel.selectedImages.indices.contains(index) {
+                    ImageCropView(image: viewModel.selectedImages[index]) { cropped in
+                        viewModel.updateCroppedImage(cropped)
+                    }
+                }
+            }
             .fullScreenCover(isPresented: $viewModel.showTextReview) {
                 TextReviewView(viewModel: viewModel)
             }
@@ -386,33 +397,56 @@ private struct ActionButtonCard: View {
 private struct SlideThumbnailCard: View {
     let index: Int
     let image: UIImage
+    let onCrop: () -> Void
     let onDelete: () -> Void
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
-            VStack(spacing: 8) {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: 140, height: 100)
-                    .clipped()
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            Button(action: onCrop) {
+                VStack(spacing: 8) {
+                    ZStack(alignment: .bottomTrailing) {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 140, height: 100)
+                            .clipped()
+                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
-                HStack {
-                    Text("Trang \(index)")
-                        .font(.caption2.bold())
-                        .foregroundStyle(.white.opacity(0.9))
-                    Spacer()
+                        // Crop Badge Indicator
+                        HStack(spacing: 4) {
+                            Image(systemName: "crop")
+                                .font(.system(size: 9, weight: .bold))
+                            Text("Cắt ảnh")
+                                .font(.system(size: 9, weight: .bold))
+                        }
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(Color.black.opacity(0.65))
+                        .clipShape(Capsule())
+                        .padding(6)
+                    }
+
+                    HStack {
+                        Text("Trang \(index)")
+                            .font(.caption2.bold())
+                            .foregroundStyle(.white.opacity(0.9))
+                        Spacer()
+                        Image(systemName: "crop.rotate")
+                            .font(.caption2)
+                            .foregroundStyle(Color(hex: "00CEC9"))
+                    }
+                    .padding(.horizontal, 4)
                 }
-                .padding(.horizontal, 4)
+                .padding(8)
+                .background(Color.white.opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                )
             }
-            .padding(8)
-            .background(Color.white.opacity(0.08))
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(Color.white.opacity(0.12), lineWidth: 1)
-            )
+            .buttonStyle(.plain)
 
             // Delete Button
             Button(action: onDelete) {

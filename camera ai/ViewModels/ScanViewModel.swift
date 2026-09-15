@@ -36,6 +36,8 @@ final class ScanViewModel {
     var showResults = false
     var showSettings = false
     var showApiKeyPrompt = false
+    var showCropEditor = false
+    var imageIndexToCrop: Int? = nil
 
     // MARK: - Computed Properties
     var isProcessing: Bool {
@@ -104,6 +106,21 @@ final class ScanViewModel {
     func clearImages() {
         selectedImages.removeAll()
         scannedText = ""
+        imageIndexToCrop = nil
+        showCropEditor = false
+    }
+
+    func startCropping(at index: Int) {
+        guard selectedImages.indices.contains(index) else { return }
+        imageIndexToCrop = index
+        showCropEditor = true
+    }
+
+    func updateCroppedImage(_ croppedImage: UIImage) {
+        guard let index = imageIndexToCrop, selectedImages.indices.contains(index) else { return }
+        selectedImages[index] = croppedImage
+        showCropEditor = false
+        imageIndexToCrop = nil
     }
 
     func reset() {
