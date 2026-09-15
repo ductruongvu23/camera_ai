@@ -27,57 +27,27 @@ final class GeminiService {
 
     static let availableModels: [GeminiModelOption] = [
         GeminiModelOption(
-            id: "gemini-3.8-flash",
-            displayName: "Gemini 3.8 Flash",
-            description: "Khuyên dùng • Thế hệ 3.8 mới nhất, tốc độ cao nhất",
-            badge: "Mới 3.8"
-        ),
-        GeminiModelOption(
-            id: "gemini-3.7-flash",
-            displayName: "Gemini 3.7 Flash",
-            description: "Thế hệ 3.7 • Tối ưu hóa suy luận và bóc tách tài liệu",
-            badge: "3.7 Flash"
-        ),
-        GeminiModelOption(
-            id: "gemini-3.6-flash",
-            displayName: "Gemini 3.6 Flash",
-            description: "Thế hệ 3.6 • Mô hình Flash ổn định",
-            badge: "3.6 Flash"
+            id: "gemini-2.5-flash",
+            displayName: "Gemini 2.5 Flash",
+            description: "Khuyên dùng • Tốc độ siêu nhanh, máy chủ ổn định 100%, không lo nghẽn",
+            badge: "Khuyên dùng"
         ),
         GeminiModelOption(
             id: "gemini-3.5-flash",
             displayName: "Gemini 3.5 Flash",
-            description: "Tiêu chuẩn • Thế hệ 3.5 cực kỳ ổn định & nhanh",
+            description: "Thế hệ 3.5 • Phản hồi nhanh & cấu trúc chuẩn",
             badge: "3.5 Flash"
         ),
         GeminiModelOption(
-            id: "gemini-3.5-flash-lite",
-            displayName: "Gemini 3.5 Flash-Lite",
-            description: "Siêu nhẹ • Tốc độ nhanh nhất, tiết kiệm chi phí",
-            badge: "Lite"
-        ),
-        GeminiModelOption(
-            id: "gemini-flash-latest",
-            displayName: "Gemini Flash Latest",
-            description: "Tự động trỏ tới bản Flash mới nhất của Google",
-            badge: "Auto"
-        ),
-        GeminiModelOption(
-            id: "gemini-3.1-pro-preview",
-            displayName: "Gemini 3.1 Pro",
-            description: "Flagship 3.1 Pro • Suy luận sâu cho tài liệu phức tạp",
-            badge: "Pro"
-        ),
-        GeminiModelOption(
-            id: "gemini-2.5-flash",
-            displayName: "Gemini 2.5 Flash",
-            description: "Thế hệ 2.5 • Phân tích bài giảng nhanh",
-            badge: "2.5 Flash"
+            id: "gemini-3.7-flash",
+            displayName: "Gemini 3.7 Flash",
+            description: "Thế hệ 3.7 • Suy luận sâu và bóc tách tài liệu",
+            badge: "3.7 Flash"
         ),
         GeminiModelOption(
             id: "gemini-2.5-pro",
             displayName: "Gemini 2.5 Pro",
-            description: "Thế hệ 2.5 Pro • Phân tích logic và văn bản học thuật",
+            description: "Chuyên sâu • Phân tích tài liệu học thuật phức tạp",
             badge: "2.5 Pro"
         )
     ]
@@ -92,14 +62,14 @@ final class GeminiService {
         }
     }
 
-    /// Retrieve the selected model ID from UserDefaults (defaults to gemini-3.8-flash).
+    /// Retrieve the selected model ID from UserDefaults (defaults to gemini-2.5-flash).
     static var storedModelId: String {
         get {
             let saved = UserDefaults.standard.string(forKey: modelStorageKey) ?? ""
             let clean = cleanModelId(saved)
-            // Automatically upgrade legacy/unavailable models like 3.0 or 2.0 to 3.8-flash
-            if clean.isEmpty || clean == "gemini-3.0-flash" || clean == "gemini-3.0-pro" || clean == "gemini-2.0-flash" || clean == "gemini-1.5-flash" {
-                return "gemini-3.8-flash"
+            // Automatically upgrade legacy/unavailable or overloaded models to rock-solid 2.5-flash
+            if clean.isEmpty || clean == "gemini-3.8-flash" || clean == "gemini-3.0-flash" || clean == "gemini-3.0-pro" || clean == "gemini-2.0-flash" || clean == "gemini-1.5-flash" {
+                return "gemini-2.5-flash"
             }
             return clean
         }
@@ -180,16 +150,11 @@ final class GeminiService {
         let rawModelId = (modelIdOverride ?? Self.storedModelId)
         let cleanPrimary = Self.cleanModelId(rawModelId)
 
-        // Candidate fallback order: user chosen model -> 3.8-flash -> 3.5-flash -> 3.7-flash -> 3.8-pro -> 3.5-pro -> 2.5-flash
+        // Candidate fallback order: user chosen model -> 2.5-flash -> 3.5-flash -> 3.7-flash -> 2.5-pro
         let fallbackSequence = [
-            "gemini-3.8-flash",
-            "gemini-3.7-flash",
-            "gemini-3.6-flash",
-            "gemini-3.5-flash",
-            "gemini-3.5-flash-lite",
-            "gemini-flash-latest",
             "gemini-2.5-flash",
-            "gemini-3.1-pro-preview",
+            "gemini-3.5-flash",
+            "gemini-3.7-flash",
             "gemini-2.5-pro"
         ]
         var candidateModels = [cleanPrimary]
@@ -211,8 +176,8 @@ final class GeminiService {
                 print("Gemini model \(failedModel) unavailable (\(msg)), trying fallback...")
                 lastError = GeminiError.modelUnavailable(modelId: failedModel, message: msg)
                 continue
-            } catch let GeminiError.httpError(code) where code == 404 {
-                lastError = GeminiError.httpError(404)
+            } catch let GeminiError.httpError(code) where code == 404 || code == 503 {
+                lastError = GeminiError.httpError(code)
                 continue
             } catch {
                 throw error
@@ -280,7 +245,7 @@ final class GeminiService {
             }
 
             let lower = errorMsg.lowercased()
-            if httpResponse.statusCode == 404 || lower.contains("not found") || lower.contains("not supported") || lower.contains("models/") || lower.contains("listmodels") {
+            if httpResponse.statusCode == 404 || httpResponse.statusCode == 503 || lower.contains("not found") || lower.contains("not supported") || lower.contains("models/") || lower.contains("listmodels") || lower.contains("capacity") || lower.contains("unavailable") || lower.contains("overloaded") {
                 throw GeminiError.modelUnavailable(modelId: cleanId, message: errorMsg)
             }
 

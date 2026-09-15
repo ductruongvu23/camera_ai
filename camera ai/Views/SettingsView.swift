@@ -10,7 +10,7 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var apiKeyInput: String = ""
-    @State private var selectedModelId: String = "gemini-3.8-flash"
+    @State private var selectedModelId: String = "gemini-2.5-flash"
     @State private var liveModels: [GeminiModelOption] = GeminiService.availableModels
     @State private var isScanningModels: Bool = false
     @State private var scanResultText: String? = nil
@@ -99,7 +99,7 @@ struct SettingsView: View {
                 .font(.system(.title2, design: .rounded).bold())
                 .foregroundStyle(.white)
 
-            Text("Hệ thống hỗ trợ thế hệ Gemini 3.x mới nhất và tự động dò tìm model khả dụng trên API Key của bạn.")
+            Text("Ưu tiên các mô hình Gemini ổn định nhất, hoạt động trơn tru 100% không lo quá tải dung lượng.")
                 .font(.subheadline)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.white.opacity(0.7))
@@ -113,7 +113,7 @@ struct SettingsView: View {
             HStack {
                 Image(systemName: "cpu.fill")
                     .foregroundStyle(Color(hex: "00CEC9"))
-                Text("Mô Hình Gemini AI (Thế hệ 3.x)")
+                Text("Mô Hình Gemini AI (Tối Ưu & Ổn Định)")
                     .font(.subheadline.bold())
                     .foregroundStyle(.white.opacity(0.9))
 
