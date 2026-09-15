@@ -33,16 +33,16 @@ final class GeminiService {
             badge: "Khuyên dùng"
         ),
         GeminiModelOption(
-            id: "gemini-3.5-flash",
-            displayName: "Gemini 3.5 Flash",
-            description: "Thế hệ 3.5 • Phản hồi nhanh & cấu trúc chuẩn",
-            badge: "3.5 Flash"
+            id: "gemini-2.0-flash",
+            displayName: "Gemini 2.0 Flash",
+            description: "Thế hệ 2.0 • Ổn định và phản hồi tức thì",
+            badge: "2.0 Flash"
         ),
         GeminiModelOption(
-            id: "gemini-3.7-flash",
-            displayName: "Gemini 3.7 Flash",
-            description: "Thế hệ 3.7 • Suy luận sâu và bóc tách tài liệu",
-            badge: "3.7 Flash"
+            id: "gemini-1.5-flash",
+            displayName: "Gemini 1.5 Flash",
+            description: "Thế hệ 1.5 • Dung lượng máy chủ lớn nhất toàn cầu",
+            badge: "1.5 Flash"
         ),
         GeminiModelOption(
             id: "gemini-2.5-pro",
@@ -67,14 +67,18 @@ final class GeminiService {
         get {
             let saved = UserDefaults.standard.string(forKey: modelStorageKey) ?? ""
             let clean = cleanModelId(saved)
-            // Automatically upgrade legacy/unavailable or overloaded models to rock-solid 2.5-flash
-            if clean.isEmpty || clean == "gemini-3.8-flash" || clean == "gemini-3.0-flash" || clean == "gemini-3.0-pro" || clean == "gemini-2.0-flash" || clean == "gemini-1.5-flash" {
+            // If empty, contains 3.8 (server capacity failure), 3.0, or not in verified models, enforce gemini-2.5-flash
+            if clean.isEmpty || clean.contains("3.8") || clean.contains("3.0") || !availableModels.contains(where: { $0.id == clean }) {
+                UserDefaults.standard.set("gemini-2.5-flash", forKey: modelStorageKey)
                 return "gemini-2.5-flash"
             }
             return clean
         }
         set {
-            let clean = cleanModelId(newValue)
+            var clean = cleanModelId(newValue)
+            if clean.contains("3.8") || clean.contains("3.0") || clean.isEmpty {
+                clean = "gemini-2.5-flash"
+            }
             UserDefaults.standard.set(clean, forKey: modelStorageKey)
         }
     }
@@ -110,7 +114,9 @@ final class GeminiService {
 
         let validModels = models.filter { item in
             guard let methods = item.supportedGenerationMethods else { return false }
-            return methods.contains("generateContent")
+            let clean = cleanModelId(item.name)
+            // Filter out 3.8 models that currently suffer from Google 503 capacity outages
+            return methods.contains("generateContent") && !clean.contains("3.8")
         }
 
         guard !validModels.isEmpty else { return availableModels }
@@ -148,13 +154,16 @@ final class GeminiService {
         }
 
         let rawModelId = (modelIdOverride ?? Self.storedModelId)
-        let cleanPrimary = Self.cleanModelId(rawModelId)
+        var cleanPrimary = Self.cleanModelId(rawModelId)
+        if cleanPrimary.contains("3.8") || cleanPrimary.isEmpty {
+            cleanPrimary = "gemini-2.5-flash"
+        }
 
-        // Candidate fallback order: user chosen model -> 2.5-flash -> 3.5-flash -> 3.7-flash -> 2.5-pro
+        // Candidate fallback order: user chosen model -> 2.5-flash -> 2.0-flash -> 1.5-flash -> 2.5-pro
         let fallbackSequence = [
             "gemini-2.5-flash",
-            "gemini-3.5-flash",
-            "gemini-3.7-flash",
+            "gemini-2.0-flash",
+            "gemini-1.5-flash",
             "gemini-2.5-pro"
         ]
         var candidateModels = [cleanPrimary]
@@ -179,6 +188,13 @@ final class GeminiService {
             } catch let GeminiError.httpError(code) where code == 404 || code == 503 {
                 lastError = GeminiError.httpError(code)
                 continue
+            } catch GeminiError.apiError(let msg) {
+                let lower = msg.lowercased()
+                if lower.contains("capacity") || lower.contains("unavailable") || lower.contains("503") || lower.contains("overloaded") || lower.contains("not found") {
+                    lastError = GeminiError.apiError(msg)
+                    continue
+                }
+                throw GeminiError.apiError(msg)
             } catch {
                 throw error
             }
@@ -280,7 +296,7 @@ final class GeminiService {
         return parseFallbackMarkdown(rawCandidateText)
     }
 
-    /// Intelligent fallback: if AI output wasn't strict JSON, format as markdown & bullet points
+    /// Intelligent fallback: if AI output wasn't strict JSON, format as markdown, bullet points & mind map tree
     private func parseFallbackMarkdown(_ text: String) -> GeminiResponse {
         let lines = text.components(separatedBy: .newlines)
         var bullets: [String] = []
@@ -308,39 +324,65 @@ final class GeminiService {
             bullets = ["Đã hoàn thành phân tích nội dung văn bản."]
         }
 
+        let fallbackMindMap = MindMapBuilder.buildFallback(formattedContent: text, summaryPoints: bullets)
+
         return GeminiResponse(
             formattedLecture: text,
-            summaryPoints: bullets
+            summaryPoints: bullets,
+            mindmap: fallbackMindMap
         )
     }
 
-    /// Build the strict prompt instructing Gemini to return JSON with 2 distinct fields.
+    /// Build the strict prompt instructing Gemini to return JSON with 3 distinct fields including Mind Map.
     private func buildPrompt(rawText: String) -> String {
         return """
-        Bạn là một trợ lý số hóa và tóm tắt tài liệu chuyên nghiệp.
-        Nhiệm vụ của bạn là tiếp nhận văn bản đã được người dùng chỉnh sửa và trích xuất tóm tắt.
+        Bạn là một chuyên gia số hóa, tổ chức kiến thức và tạo sơ đồ tư duy (Mind Map) chuyên nghiệp.
+        Nhiệm vụ của bạn là tiếp nhận văn bản đã được người dùng chỉnh sửa, trích xuất tóm tắt và xây dựng Sơ Đồ Tư Duy phân cấp.
 
         QUY TẮC BẮT BUỘC:
         1. Temperature = 0.0: Bám sát nội dung văn bản được cung cấp, không bịa đặt.
         2. Chuẩn hóa lại bố cục theo phân cấp Markdown mạch lạc.
         3. Giữ nguyên ngôn ngữ gốc của văn bản.
 
-        BẮT BUỘC TRẢ VỀ ĐÚNG ĐỊNH DẠNG JSON GỒM 2 TRƯỜNG:
+        BẮT BUỘC TRẢ VỀ ĐÚNG ĐỊNH DẠNG JSON GỒM 3 TRƯỜNG:
         {
           "formatted_lecture": "<Chuỗi Markdown hoàn chỉnh>",
-          "summary_points": ["<Ý cốt lõi 1>", "<Ý cốt lõi 2>", ...]
+          "summary_points": ["<Ý cốt lõi 1>", "<Ý cốt lõi 2>", ...],
+          "mindmap": {
+            "title": "<Chủ đề trung tâm>",
+            "children": [
+              {
+                "title": "<Nhánh chính 1>",
+                "details": "<Mô tả ngắn nếu có>",
+                "children": [
+                  { "title": "<Ý con 1.1>" },
+                  { "title": "<Ý con 1.2>" }
+                ]
+              },
+              {
+                "title": "<Nhánh chính 2>",
+                "details": "<Mô tả ngắn nếu có>",
+                "children": [
+                  { "title": "<Ý con 2.1>" }
+                ]
+              }
+            ]
+          }
         }
 
-        CHI TIẾT 2 TRƯỜNG DỮ LIỆU:
+        CHI TIẾT 3 TRƯỜNG DỮ LIỆU:
         - "formatted_lecture": Toàn bộ nội dung văn bản được cấu trúc lại thành Markdown chuẩn:
           + Tiêu đề (#)
           + Các mục chính/phụ (##, ###)
           + Danh sách gạch đầu dòng (- )
           + In đậm các thuật ngữ quan trọng (**từ khóa**)
 
-        - "summary_points": Mảng gồm 4-8 gạch đầu dòng ngắn gọn, cô đọng nhất:
-          + Khái niệm định nghĩa cốt lõi
-          + Điểm nhấn quan trọng để ôn tập nhanh.
+        - "summary_points": Mảng gồm 4-8 gạch đầu dòng ngắn gọn, cô đọng nhất để ôn thi nhanh.
+
+        - "mindmap": Cấu trúc cây Sơ Đồ Tư Duy:
+          + "title": Tên bài học / chủ đề trung tâm (ngắn gọn, súc tích, dưới 7 từ).
+          + "children": 3 đến 6 nhánh chính (cấp 1), mỗi nhánh chính có 2 đến 5 nhánh con (cấp 2).
+          + "details": Tùy chọn, giải thích hoặc từ khóa bổ trợ ngắn gọn.
 
         VĂN BẢN ĐÃ CUNG CẤP:
         ---
@@ -364,7 +406,50 @@ final class GeminiService {
 
     /// Generates sample demonstration data
     static func createSampleResponse() -> GeminiResponse {
-        GeminiResponse(
+        let sampleMindMap = MindMapNode(
+            title: "Trí Tuệ Nhân Tạo & Học Máy",
+            children: [
+                MindMapNode(
+                    title: "1. Khái Niệm Cốt Lõi",
+                    details: "Phân cấp từ AI đến Deep Learning",
+                    children: [
+                        MindMapNode(title: "AI: Máy móc mô phỏng tư duy con người"),
+                        MindMapNode(title: "Machine Learning: Học tự động từ dữ liệu"),
+                        MindMapNode(title: "Deep Learning: Mạng nơ-ron sâu nhiều tầng")
+                    ]
+                ),
+                MindMapNode(
+                    title: "2. Quy Trình Huấn Luyện",
+                    details: "4 bước chuẩn mực từ dữ liệu đến mô hình",
+                    children: [
+                        MindMapNode(title: "Thu thập & làm sạch dữ liệu"),
+                        MindMapNode(title: "Tiền xử lý & gán nhãn"),
+                        MindMapNode(title: "Huấn luyện (Backpropagation & Gradient Descent)"),
+                        MindMapNode(title: "Đánh giá hiệu năng kiểm thử")
+                    ]
+                ),
+                MindMapNode(
+                    title: "3. Chỉ Số Đánh Giá",
+                    details: "Metrics đo lường độ tin cậy",
+                    children: [
+                        MindMapNode(title: "Accuracy: Tỷ lệ đoán đúng tổng thể"),
+                        MindMapNode(title: "Precision & Recall: Độ chính xác & bao phủ"),
+                        MindMapNode(title: "F1-Score: Trung bình điều hòa")
+                    ]
+                ),
+                MindMapNode(
+                    title: "4. Ứng Dụng Thực Tiễn",
+                    details: "Triển khai trong đời sống số",
+                    children: [
+                        MindMapNode(title: "Nhận dạng giọng nói (Siri) & khuôn mặt (FaceID)"),
+                        MindMapNode(title: "Xe tự hành & Robot công nghiệp"),
+                        MindMapNode(title: "Thị giác máy tính & OCR quét tài liệu")
+                    ]
+                )
+            ]
+        )
+
+        return GeminiResponse(
             formattedLecture: """
             # Giới Thiệu Về Trí Tuệ Nhân Tạo & Học Máy (AI & ML)
 
@@ -389,7 +474,8 @@ final class GeminiService {
                 "Quy trình xây dựng mô hình: Thu thập dữ liệu ➔ Tiền xử lý ➔ Huấn luyện (Backpropagation) ➔ Đánh giá.",
                 "Các chỉ số đánh giá quan trọng: Accuracy, Precision, Recall và F1-Score.",
                 "Ứng dụng hàng đầu: Thị giác máy tính (OCR), Xử lý ngôn ngữ tự nhiên (NLP) và Tự động hóa."
-            ]
+            ],
+            mindmap: sampleMindMap
         )
     }
 }

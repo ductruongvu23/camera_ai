@@ -209,6 +209,7 @@ final class ScanViewModel {
                 mergedRawText: textToSummarize,
                 formattedContent: geminiResult.formattedLecture,
                 summaryPoints: geminiResult.summaryPoints,
+                mindmap: geminiResult.mindmap,
                 createdAt: .now
             )
 
@@ -233,6 +234,7 @@ final class ScanViewModel {
             mergedRawText: scannedText.isEmpty ? "Nội dung mẫu thử nghiệm" : scannedText,
             formattedContent: sample.formattedLecture,
             summaryPoints: sample.summaryPoints,
+            mindmap: sample.mindmap,
             createdAt: .now
         )
         showResults = true

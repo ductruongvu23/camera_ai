@@ -45,6 +45,10 @@ struct SettingsView: View {
             .onAppear {
                 apiKeyInput = GeminiService.storedApiKey
                 selectedModelId = GeminiService.storedModelId
+                if selectedModelId.contains("3.8") || selectedModelId.isEmpty {
+                    selectedModelId = "gemini-2.5-flash"
+                    GeminiService.storedModelId = "gemini-2.5-flash"
+                }
                 liveModels = GeminiService.availableModels
                 if !apiKeyInput.isEmpty {
                     Task {
@@ -176,7 +180,7 @@ struct SettingsView: View {
                 Image(systemName: "pencil.and.outline")
                     .font(.caption)
                     .foregroundStyle(Color(hex: "FD79A8"))
-                TextField("Tùy chỉnh model ID (ví dụ: gemini-3.8-flash)", text: $selectedModelId)
+                TextField("Tùy chỉnh model ID (ví dụ: gemini-2.5-flash)", text: $selectedModelId)
                     .font(.caption)
                     .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)
@@ -244,24 +248,25 @@ struct SettingsView: View {
                     }
                 }
             }
-            .padding()
-            .background(Color.white.opacity(0.08))
+            .padding(14)
+            .background(Color.white.opacity(0.06))
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(Color.white.opacity(0.15), lineWidth: 1)
+                    .stroke(Color.white.opacity(0.12), lineWidth: 1)
             )
 
             // Direct link to Google AI Studio
             Link(destination: URL(string: "https://aistudio.google.com/app/apikey")!) {
                 HStack(spacing: 6) {
-                    Image(systemName: "arrow.up.right.square")
-                    Text("Lấy API Key miễn phí tại Google AI Studio")
+                    Image(systemName: "arrow.up.forward.app.fill")
+                        .font(.caption)
+                    Text("Lấy API Key miễn phí tại aistudio.google.com")
+                        .font(.caption.bold())
                 }
-                .font(.caption.bold())
                 .foregroundStyle(Color(hex: "00CEC9"))
             }
-            .padding(.top, 4)
+            .padding(.leading, 4)
         }
         .padding(20)
         .background(Color.white.opacity(0.05))
@@ -275,8 +280,13 @@ struct SettingsView: View {
 
     private var saveButtonView: some View {
         Button {
+            var finalModel = selectedModelId.trimmingCharacters(in: .whitespacesAndNewlines)
+            if finalModel.contains("3.8") || finalModel.isEmpty {
+                finalModel = "gemini-2.5-flash"
+                selectedModelId = "gemini-2.5-flash"
+            }
             GeminiService.storedApiKey = apiKeyInput
-            GeminiService.storedModelId = selectedModelId
+            GeminiService.storedModelId = finalModel
             showSavedAlert = true
         } label: {
             HStack {

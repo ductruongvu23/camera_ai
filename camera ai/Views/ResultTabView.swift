@@ -11,11 +11,13 @@ import QuickLook
 enum ResultTabSelection: Int, CaseIterable {
     case summary = 0
     case lecture = 1
+    case mindmap = 2
 
     var title: String {
         switch self {
-        case .summary: return "⚡ Tóm Tắt Ôn Tập"
-        case .lecture: return "📚 Bố Cục Bài Giảng"
+        case .summary: return "⚡ Tóm Tắt"
+        case .lecture: return "📚 Bố Cục"
+        case .mindmap: return "🧠 Sơ Đồ Tư Duy"
         }
     }
 }
@@ -24,7 +26,7 @@ struct ResultTabView: View {
     let session: ScanSession
     let onDismiss: () -> Void
 
-    @State private var selectedTab: ResultTabSelection = .summary
+    @State private var selectedTab: ResultTabSelection = .mindmap
     @State private var showExportSheet: Bool = false
     @State private var shareItems: [Any] = []
     @State private var isExporting: Bool = false
@@ -43,11 +45,11 @@ struct ResultTabView: View {
 
                 VStack(spacing: 0) {
                     // Export & Quick Action Bar
-                    HStack(spacing: 10) {
+                    HStack(spacing: 8) {
                         // Export A4 PDF Button
                         ExportActionButton(
                             icon: "doc.text.fill",
-                            title: "Xuất PDF (A4)",
+                            title: "PDF A4",
                             color: Color(hex: "00CEC9")
                         ) {
                             exportPDF(format: .documentA4)
@@ -56,7 +58,7 @@ struct ResultTabView: View {
                         // Export 16:9 Presentation Slides
                         ExportActionButton(
                             icon: "rectangle.inset.filled.and.person.filled",
-                            title: "Xuất Slide PDF",
+                            title: "Slide PDF",
                             color: Color(hex: "6C5CE7")
                         ) {
                             exportPDF(format: .presentation16x9)
@@ -75,8 +77,8 @@ struct ResultTabView: View {
                     .padding(.top, 10)
                     .padding(.bottom, 6)
 
-                    // Custom Segmented Control
-                    HStack(spacing: 6) {
+                    // Custom Segmented Control (3 Tabs)
+                    HStack(spacing: 4) {
                         ForEach(ResultTabSelection.allCases, id: \.self) { tab in
                             Button {
                                 withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
@@ -87,19 +89,13 @@ struct ResultTabView: View {
                                     .font(.system(.subheadline, design: .rounded).bold())
                                     .foregroundStyle(selectedTab == tab ? .white : .white.opacity(0.6))
                                     .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 12)
+                                    .padding(.vertical, 10)
                                     .background(
                                         ZStack {
                                             if selectedTab == tab {
                                                 RoundedRectangle(cornerRadius: 14, style: .continuous)
                                                     .fill(
-                                                        LinearGradient(
-                                                            colors: tab == .summary ?
-                                                                [Color(hex: "6C5CE7"), Color(hex: "FD79A8")] :
-                                                                [Color(hex: "6C5CE7"), Color(hex: "00CEC9")],
-                                                            startPoint: .leading,
-                                                            endPoint: .trailing
-                                                        )
+                                                        tabColor(for: tab)
                                                     )
                                                     .shadow(color: Color(hex: "6C5CE7").opacity(0.4), radius: 8, x: 0, y: 4)
                                             }
@@ -125,6 +121,9 @@ struct ResultTabView: View {
 
                         LectureTabView(formattedContent: session.formattedContent)
                             .tag(ResultTabSelection.lecture)
+
+                        MindMapTabView(rootNode: session.effectiveMindMap)
+                            .tag(ResultTabSelection.mindmap)
                     }
                     .tabViewStyle(.page(indexDisplayMode: .never))
                 }
@@ -182,6 +181,29 @@ struct ResultTabView: View {
         }
     }
 
+    private func tabColor(for tab: ResultTabSelection) -> LinearGradient {
+        switch tab {
+        case .summary:
+            return LinearGradient(
+                colors: [Color(hex: "6C5CE7"), Color(hex: "FD79A8")],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        case .lecture:
+            return LinearGradient(
+                colors: [Color(hex: "6C5CE7"), Color(hex: "00CEC9")],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        case .mindmap:
+            return LinearGradient(
+                colors: [Color(hex: "00CEC9"), Color(hex: "6C5CE7")],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        }
+    }
+
     // MARK: - Export Logic
 
     private func exportPDF(format: PDFExportService.ExportFormat) {
@@ -209,6 +231,11 @@ struct ResultTabView: View {
 
         ---
 
+        ## 🧠 SƠ ĐỒ TƯ DUY (MIND MAP)
+        \(MindMapBuilder.toOutlineText(session.effectiveMindMap))
+
+        ---
+
         ## 📚 BỐ CỤC BÀI GIẢNG CHI TIẾT
         \(session.formattedContent)
         """
@@ -230,6 +257,9 @@ struct ResultTabView: View {
 
         ⚡ TÓM TẮT ÔN TẬP:
         \(session.summaryPoints.enumerated().map { "\($0 + 1). \($1)" }.joined(separator: "\n"))
+
+        🧠 SƠ ĐỒ TƯ DUY:
+        \(MindMapBuilder.toOutlineText(session.effectiveMindMap))
 
         📚 NỘI DUNG CHI TIẾT:
         \(session.formattedContent)
