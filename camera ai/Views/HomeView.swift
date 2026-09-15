@@ -154,18 +154,18 @@ struct HomeView: View {
                             }
                         }
 
-                        // Batch Optimization Highlight Banner
+                        // OCR On-Device Highlight Banner
                         if viewModel.hasImages {
                             HStack(spacing: 12) {
-                                Image(systemName: "bolt.badge.clock.fill")
+                                Image(systemName: "text.viewfinder")
                                     .font(.title2)
                                     .foregroundStyle(Color(hex: "00CEC9"))
 
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text("Batch AI Processing")
+                                    Text("Bước 1: Trích Xuất Văn Bản Trên Máy")
                                         .font(.caption.bold())
                                         .foregroundStyle(Color(hex: "00CEC9"))
-                                    Text("Tất cả \(viewModel.selectedImages.count) trang sẽ được gộp và gửi trong 1 request duy nhất tới \(GeminiService.storedModelId).")
+                                    Text("Toàn bộ \(viewModel.selectedImages.count) trang sẽ được nhận diện chữ offline. Bạn sẽ được xem và chỉnh sửa trước khi tóm tắt AI.")
                                         .font(.caption2)
                                         .foregroundStyle(.white.opacity(0.75))
                                 }
@@ -181,17 +181,17 @@ struct HomeView: View {
                             .padding(.horizontal, 20)
                         }
 
-                        // Action CTA: Start Processing
+                        // Action CTA: Start Image to Text OCR
                         VStack(spacing: 12) {
                             Button {
                                 Task {
-                                    await viewModel.processAllSlides()
+                                    await viewModel.scanImagesToText()
                                 }
                             } label: {
                                 HStack(spacing: 10) {
-                                    Image(systemName: "sparkles")
+                                    Image(systemName: "doc.text.magnifyingglass")
                                         .font(.headline)
-                                    Text(viewModel.hasImages ? "Tóm Tắt & Phân Tích \(viewModel.selectedImages.count) Trang" : "Hãy Chụp Hoặc Chọn Văn Bản")
+                                    Text(viewModel.hasImages ? "Chuyển \(viewModel.selectedImages.count) Trang Thành Văn Bản" : "Hãy Chụp Hoặc Chọn Văn Bản")
                                         .font(.system(.headline, design: .rounded).bold())
                                 }
                                 .foregroundStyle(.white)
@@ -267,6 +267,9 @@ struct HomeView: View {
             }
             .sheet(isPresented: $viewModel.showSettings) {
                 SettingsView()
+            }
+            .fullScreenCover(isPresented: $viewModel.showTextReview) {
+                TextReviewView(viewModel: viewModel)
             }
             .fullScreenCover(isPresented: $viewModel.showResults) {
                 if let session = viewModel.currentSession {

@@ -9,7 +9,10 @@ import SwiftUI
 import PhotosUI
 
 /// Main ViewModel using the Swift Observation framework.
-/// Manages the entire pipeline: Image selection (camera/library) ➔ On-Device OCR ➔ Gemini Batch AI ➔ Dual-Tab UI
+/// Workflow:
+/// 1. Image Selection (Camera/Library)
+/// 2. On-Device OCR ➔ User views and edits recognized text
+/// 3. (Optional / Add-on) AI Summarization via Gemini
 @MainActor
 @Observable
 final class ScanViewModel {
@@ -20,6 +23,7 @@ final class ScanViewModel {
 
     // MARK: - App State
     var selectedImages: [UIImage] = []
+    var scannedText: String = ""
     var processingState: ProcessingState = .idle
     var currentSession: ScanSession?
     var errorMessage: String?
@@ -28,6 +32,7 @@ final class ScanViewModel {
     // MARK: - UI Navigation Sheets
     var showCamera = false
     var showPhotoLibrary = false
+    var showTextReview = false
     var showResults = false
     var showSettings = false
     var showApiKeyPrompt = false
@@ -59,7 +64,7 @@ final class ScanViewModel {
         case .processingAI:
             return "Gemini (\(GeminiService.storedModelId)) đang tóm tắt..."
         case .completed:
-            return "Đã hoàn tất xử lý!"
+            return "Đã hoàn tất!"
         case .error(let msg):
             return "Lỗi: \(msg)"
         }
@@ -71,9 +76,9 @@ final class ScanViewModel {
             return 0.0
         case .scanningOCR(let current, let total):
             guard total > 0 else { return 0.2 }
-            return 0.1 + (Double(current) / Double(total)) * 0.5
+            return 0.1 + (Double(current) / Double(total)) * 0.7
         case .processingAI:
-            return 0.8
+            return 0.85
         case .completed:
             return 1.0
         case .error:
@@ -98,34 +103,31 @@ final class ScanViewModel {
 
     func clearImages() {
         selectedImages.removeAll()
+        scannedText = ""
     }
 
     func reset() {
         selectedImages.removeAll()
+        scannedText = ""
         processingState = .idle
         currentSession = nil
         errorMessage = nil
+        showTextReview = false
         showResults = false
     }
 
-    // MARK: - Core Pipeline Execution
+    // MARK: - STEP 1: On-Device Image to Text (No AI needed)
 
-    /// Starts the end-to-end pipeline:
-    /// [Ảnh Slide Bài Giảng] ➔ [1. Vision OCR (On-Device)] ➔ [2. Gemini API (Batch)] ➔ [3. Dual-View UI]
-    func processAllSlides() async {
+    /// Converts all captured images into editable text using Vision OCR on-device.
+    func scanImagesToText() async {
         guard !selectedImages.isEmpty else { return }
-
-        // Check if API key is configured
-        if !apiKeyConfigured {
-            showApiKeyPrompt = true
-            return
-        }
 
         errorMessage = nil
         showErrorAlert = false
 
         do {
-            // STEP 1: Vision OCR (On-Device, Batch) - Fully Swift 6 MainActor compliant
+            processingState = .scanningOCR(current: 0, total: selectedImages.count)
+
             var rawTexts: [String] = []
             let totalImages = selectedImages.count
 
@@ -135,48 +137,83 @@ final class ScanViewModel {
                 rawTexts.append(text)
             }
 
-            // Combine all raw slide texts into one batch payload
-            let mergedText = rawTexts.enumerated().map { index, text in
-                """
-                === TRANG VĂN BẢN SỐ \(index + 1) ===
-                \(text.isEmpty ? "(Trang không có văn bản nhận diện được)" : text)
-                """
+            // Merge recognized texts with page dividers
+            let merged = rawTexts.enumerated().map { index, text in
+                if totalImages > 1 {
+                    return """
+                    === TRANG VĂN BẢN SỐ \(index + 1) ===
+                    \(text.isEmpty ? "(Trang này không phát hiện được chữ)" : text)
+                    """
+                } else {
+                    return text
+                }
             }.joined(separator: "\n\n")
 
-            // STEP 2: Gemini API Processing (temperature = 0.0, structured JSON)
+            scannedText = merged
+            processingState = .idle
+
+            // Open the text review & editing screen immediately!
+            showTextReview = true
+
+        } catch {
+            processingState = .idle
+            errorMessage = error.localizedDescription
+            showErrorAlert = true
+        }
+    }
+
+    // MARK: - STEP 2: (Optional Add-on) AI Summarization
+
+    /// Sends the edited text to Gemini AI for structuring and summarization.
+    func summarizeEditedText() async {
+        let textToSummarize = scannedText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !textToSummarize.isEmpty else {
+            errorMessage = "Văn bản rỗng, không thể tóm tắt."
+            showErrorAlert = true
+            return
+        }
+
+        if !apiKeyConfigured {
+            showApiKeyPrompt = true
+            return
+        }
+
+        errorMessage = nil
+        showErrorAlert = false
+
+        do {
             processingState = .processingAI
 
-            let geminiResult = try await geminiService.processLectureText(mergedText)
+            let geminiResult = try await geminiService.processLectureText(textToSummarize)
 
-            // STEP 3: Display Dual-View Results
             let session = ScanSession(
                 images: selectedImages,
-                rawTexts: rawTexts,
-                mergedRawText: mergedText,
+                rawTexts: [textToSummarize],
+                mergedRawText: textToSummarize,
                 formattedContent: geminiResult.formattedLecture,
                 summaryPoints: geminiResult.summaryPoints,
                 createdAt: .now
             )
 
             currentSession = session
-            processingState = .completed
+            processingState = .idle
             showResults = true
 
         } catch {
-            processingState = .error(error.localizedDescription)
+            processingState = .idle
             errorMessage = error.localizedDescription
             showErrorAlert = true
         }
     }
 
-    /// Load demonstration mode for testing without requiring a live Gemini API key
+    /// Load demonstration mode for testing without a live Gemini API key
     func runDemoMode() {
         processingState = .completed
         let sample = GeminiService.createSampleResponse()
         currentSession = ScanSession(
             images: selectedImages,
             rawTexts: ["Trang 1: Giới thiệu AI", "Trang 2: Machine Learning", "Trang 3: Deep Learning"],
-            mergedRawText: "Nội dung mẫu thử nghiệm",
+            mergedRawText: scannedText.isEmpty ? "Nội dung mẫu thử nghiệm" : scannedText,
             formattedContent: sample.formattedLecture,
             summaryPoints: sample.summaryPoints,
             createdAt: .now
