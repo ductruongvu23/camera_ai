@@ -3,6 +3,7 @@
 //  camera ai
 //
 //  Created by vdt on 15/9/26.
+//  Redesigned following Apple Human Interface Guidelines (Apple Design System)
 //
 
 import SwiftUI
@@ -10,7 +11,7 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var apiKeyInput: String = ""
-    @State private var selectedModelId: String = "gemini-2.5-flash"
+    @State private var selectedModelId: String = "gemini-3.5-flash"
     @State private var liveModels: [GeminiModelOption] = GeminiService.availableModels
     @State private var isScanningModels: Bool = false
     @State private var scanResultText: String? = nil
@@ -19,353 +20,196 @@ struct SettingsView: View {
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                backgroundGradient
+            Form {
+                // MARK: - Model Selection Section
+                Section {
+                    ForEach(liveModels) { model in
+                        Button {
+                            withAnimation(.spring(response: 0.25)) {
+                                selectedModelId = model.id
+                            }
+                        } label: {
+                            HStack(spacing: 12) {
+                                VStack(alignment: .leading, spacing: 3) {
+                                    HStack(spacing: 6) {
+                                        Text(model.displayName)
+                                            .font(.body.weight(.medium))
+                                            .foregroundStyle(AppleTheme.primaryText)
 
-                ScrollView {
-                    VStack(spacing: 24) {
-                        headerView
-                        modelSectionView
-                        apiKeySectionView
-                        saveButtonView
+                                        Text(model.badge)
+                                            .font(.system(size: 10, weight: .bold))
+                                            .foregroundStyle(model.id == "gemini-3.5-flash" ? AppleTheme.blue : AppleTheme.secondaryText)
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 2)
+                                            .background(
+                                                (model.id == "gemini-3.5-flash" ? AppleTheme.blue : AppleTheme.secondaryText).opacity(0.12)
+                                            )
+                                            .clipShape(Capsule())
+                                    }
+
+                                    Text(model.description)
+                                        .font(.caption)
+                                        .foregroundStyle(AppleTheme.secondaryText)
+                                        .lineLimit(2)
+                                }
+
+                                Spacer()
+
+                                if selectedModelId == model.id {
+                                    Image(systemName: "checkmark")
+                                        .font(.subheadline.bold())
+                                        .foregroundStyle(AppleTheme.blue)
+                                }
+                            }
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .padding(.bottom, 40)
+
+                    // Custom Model ID Option
+                    HStack {
+                        Image(systemName: "pencil")
+                            .foregroundStyle(AppleTheme.secondaryText)
+                        TextField("Tùy chỉnh model ID (ví dụ: gemini-3.5-flash)", text: $selectedModelId)
+                            .font(.subheadline)
+                            .autocorrectionDisabled()
+                            .textInputAutocapitalization(.never)
+                    }
+
+                    // Scan Google Models Button
+                    Button {
+                        Task {
+                            isScanningModels = true
+                            scanResultText = nil
+                            let fetched = await GeminiService.fetchLiveModels(apiKey: apiKeyInput)
+                            liveModels = fetched
+                            isScanningModels = false
+                            scanResultText = "Đã quét thấy \(fetched.count) mô hình khả dụng trên API Key của bạn!"
+                        }
+                    } label: {
+                        HStack {
+                            if isScanningModels {
+                                ProgressView()
+                                    .controlSize(.small)
+                            } else {
+                                Image(systemName: "arrow.triangle.2.circlepath")
+                            }
+                            Text("Quét danh sách mô hình từ Google AI Studio")
+                        }
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(AppleTheme.blue)
+                    }
+                    .disabled(apiKeyInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isScanningModels)
+
+                    if let scanResultText {
+                        Text(scanResultText)
+                            .font(.caption)
+                            .foregroundStyle(AppleTheme.green)
+                    }
+                } header: {
+                    Text("Mô Hình Trí Tuệ Nhân Tạo (Gemini)")
+                } footer: {
+                    Text("Bạn có thể linh hoạt chọn bất kỳ model nào. Nếu một model bị quá tải tạm thời (lỗi 503 capacity), ứng dụng sẽ tự động chuyển sang mô hình ổn định để hoàn tất bài học.")
+                }
+
+                // MARK: - API Key Section
+                Section {
+                    HStack {
+                        if isShowingKey {
+                            TextField("Dán khóa API (AIzaSy...)", text: $apiKeyInput)
+                                .autocorrectionDisabled()
+                                .textInputAutocapitalization(.never)
+                        } else {
+                            SecureField("Dán khóa API (AIzaSy...)", text: $apiKeyInput)
+                                .autocorrectionDisabled()
+                                .textInputAutocapitalization(.never)
+                        }
+
+                        Button {
+                            isShowingKey.toggle()
+                        } label: {
+                            Image(systemName: isShowingKey ? "eye.slash" : "eye")
+                                .foregroundStyle(AppleTheme.secondaryText)
+                        }
+
+                        if !apiKeyInput.isEmpty {
+                            Button {
+                                apiKeyInput = ""
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundStyle(AppleTheme.tertiaryText)
+                            }
+                        }
+                    }
+
+                    Link(destination: URL(string: "https://aistudio.google.com/app/apikey")!) {
+                        HStack {
+                            Text("Lấy API Key miễn phí tại Google AI Studio")
+                            Spacer()
+                            Image(systemName: "arrow.up.forward.app")
+                        }
+                        .font(.footnote)
+                        .foregroundStyle(AppleTheme.blue)
+                    }
+                } header: {
+                    Text("Google AI Studio API Key")
+                } footer: {
+                    Text("Khóa API được lưu trữ an toàn trên thiết bị của bạn và chỉ gửi trực tiếp tới máy chủ Google.")
+                }
+
+                // MARK: - About Section
+                Section("Thông Tin Ứng Dụng") {
+                    HStack {
+                        Text("Phiên bản")
+                        Spacer()
+                        Text("1.2 (Apple Design System)")
+                            .foregroundStyle(AppleTheme.secondaryText)
+                    }
+
+                    HStack {
+                        Text("Công nghệ OCR")
+                        Spacer()
+                        Text("Apple Vision (Offline On-Device)")
+                            .foregroundStyle(AppleTheme.secondaryText)
+                    }
+
+                    HStack {
+                        Text("Thiết kế")
+                        Spacer()
+                        Text("Apple HIG Compliant")
+                            .foregroundStyle(AppleTheme.secondaryText)
+                    }
                 }
             }
             .navigationTitle("Cài Đặt")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .topBarLeading) {
                     Button("Đóng") {
                         dismiss()
                     }
-                    .foregroundStyle(.white)
+                }
+
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Lưu") {
+                        let cleanModel = selectedModelId.trimmingCharacters(in: .whitespacesAndNewlines)
+                        GeminiService.storedApiKey = apiKeyInput
+                        GeminiService.storedModelId = cleanModel.isEmpty ? "gemini-3.5-flash" : cleanModel
+                        showSavedAlert = true
+                    }
+                    .font(.body.weight(.bold))
                 }
             }
             .onAppear {
                 apiKeyInput = GeminiService.storedApiKey
                 selectedModelId = GeminiService.storedModelId
-                if selectedModelId.contains("3.8") || selectedModelId.isEmpty {
-                    selectedModelId = "gemini-2.5-flash"
-                    GeminiService.storedModelId = "gemini-2.5-flash"
-                }
                 liveModels = GeminiService.availableModels
-                if !apiKeyInput.isEmpty {
-                    Task {
-                        let fetched = await GeminiService.fetchLiveModels(apiKey: apiKeyInput)
-                        if !fetched.isEmpty {
-                            liveModels = fetched
-                        }
-                    }
-                }
             }
-            .alert("Đã Lưu Thành Công", isPresented: $showSavedAlert) {
+            .alert("Đã Lưu Cấu Hình", isPresented: $showSavedAlert) {
                 Button("OK") {
                     dismiss()
                 }
             } message: {
-                Text("API Key và mô hình \(selectedModelId) đã được cập nhật thành công.")
-            }
-        }
-    }
-
-    // MARK: - Subviews
-
-    private var backgroundGradient: some View {
-        LinearGradient(
-            colors: [Color(hex: "0F0C20"), Color(hex: "1A1B35"), Color(hex: "0B0B14")],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
-        .ignoresSafeArea()
-    }
-
-    private var headerView: some View {
-        VStack(spacing: 12) {
-            ZStack {
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [Color(hex: "6C5CE7"), Color(hex: "A29BFE")],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: 72, height: 72)
-                    .shadow(color: Color(hex: "6C5CE7").opacity(0.5), radius: 16, x: 0, y: 8)
-
-                Image(systemName: "slider.horizontal.3")
-                    .font(.system(size: 30))
-                    .foregroundStyle(.white)
-            }
-
-            Text("Cài Đặt & Cấu Hình AI")
-                .font(.system(.title2, design: .rounded).bold())
-                .foregroundStyle(.white)
-
-            Text("Ưu tiên các mô hình Gemini ổn định nhất, hoạt động trơn tru 100% không lo quá tải dung lượng.")
-                .font(.subheadline)
-                .multilineTextAlignment(.center)
-                .foregroundStyle(.white.opacity(0.7))
-                .padding(.horizontal, 20)
-        }
-        .padding(.top, 20)
-    }
-
-    private var modelSectionView: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Image(systemName: "cpu.fill")
-                    .foregroundStyle(Color(hex: "00CEC9"))
-                Text("Mô Hình Gemini AI (Tối Ưu & Ổn Định)")
-                    .font(.subheadline.bold())
-                    .foregroundStyle(.white.opacity(0.9))
-
-                Spacer()
-
-                // Live Scan Button
-                Button {
-                    Task {
-                        isScanningModels = true
-                        scanResultText = nil
-                        let fetched = await GeminiService.fetchLiveModels(apiKey: apiKeyInput)
-                        liveModels = fetched
-                        isScanningModels = false
-                        scanResultText = "Đã quét được \(fetched.count) mô hình khả dụng!"
-                        if !fetched.contains(where: { $0.id == selectedModelId }), let first = fetched.first {
-                            selectedModelId = first.id
-                        }
-                    }
-                } label: {
-                    HStack(spacing: 4) {
-                        if isScanningModels {
-                            ProgressView()
-                                .controlSize(.mini)
-                                .tint(Color(hex: "00CEC9"))
-                        } else {
-                            Image(systemName: "arrow.triangle.2.circlepath")
-                                .font(.caption2)
-                        }
-                        Text("Quét Google")
-                            .font(.caption2.bold())
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color(hex: "00CEC9").opacity(0.15))
-                    .foregroundStyle(Color(hex: "00CEC9"))
-                    .clipShape(Capsule())
-                }
-                .disabled(apiKeyInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isScanningModels)
-            }
-
-            if let scanResultText {
-                Text(scanResultText)
-                    .font(.caption2.bold())
-                    .foregroundStyle(Color(hex: "55EFC4"))
-            }
-
-            ForEach(liveModels) { model in
-                ModelOptionRow(
-                    model: model,
-                    isSelected: selectedModelId == model.id
-                ) {
-                    withAnimation(.spring(response: 0.3)) {
-                        selectedModelId = model.id
-                    }
-                }
-            }
-
-            // Custom Model ID option
-            HStack(spacing: 8) {
-                Image(systemName: "pencil.and.outline")
-                    .font(.caption)
-                    .foregroundStyle(Color(hex: "FD79A8"))
-                TextField("Tùy chỉnh model ID (ví dụ: gemini-2.5-flash)", text: $selectedModelId)
-                    .font(.caption)
-                    .autocorrectionDisabled()
-                    .textInputAutocapitalization(.never)
-                    .foregroundStyle(.white)
-            }
-            .padding(10)
-            .background(Color.white.opacity(0.04))
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
-            )
-        }
-        .padding(20)
-        .background(Color.white.opacity(0.05))
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(Color.white.opacity(0.1), lineWidth: 1)
-        )
-        .padding(.horizontal, 20)
-    }
-
-    private var apiKeySectionView: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Image(systemName: "key.fill")
-                    .foregroundStyle(Color(hex: "A29BFE"))
-                Text("Google AI Studio API Key")
-                    .font(.subheadline.bold())
-                    .foregroundStyle(.white.opacity(0.9))
-
-                Spacer()
-
-                Button {
-                    isShowingKey.toggle()
-                } label: {
-                    Image(systemName: isShowingKey ? "eye.slash.fill" : "eye.fill")
-                        .foregroundStyle(Color(hex: "A29BFE"))
-                }
-            }
-
-            HStack {
-                Image(systemName: "lock.shield.fill")
-                    .foregroundStyle(Color(hex: "6C5CE7"))
-
-                if isShowingKey {
-                    TextField("Dán API Key (AIzaSy...)", text: $apiKeyInput)
-                        .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
-                        .foregroundStyle(.white)
-                } else {
-                    SecureField("Dán API Key (AIzaSy...)", text: $apiKeyInput)
-                        .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
-                        .foregroundStyle(.white)
-                }
-
-                if !apiKeyInput.isEmpty {
-                    Button {
-                        apiKeyInput = ""
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.white.opacity(0.5))
-                    }
-                }
-            }
-            .padding(14)
-            .background(Color.white.opacity(0.06))
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(Color.white.opacity(0.12), lineWidth: 1)
-            )
-
-            // Direct link to Google AI Studio
-            Link(destination: URL(string: "https://aistudio.google.com/app/apikey")!) {
-                HStack(spacing: 6) {
-                    Image(systemName: "arrow.up.forward.app.fill")
-                        .font(.caption)
-                    Text("Lấy API Key miễn phí tại aistudio.google.com")
-                        .font(.caption.bold())
-                }
-                .foregroundStyle(Color(hex: "00CEC9"))
-            }
-            .padding(.leading, 4)
-        }
-        .padding(20)
-        .background(Color.white.opacity(0.05))
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(Color.white.opacity(0.1), lineWidth: 1)
-        )
-        .padding(.horizontal, 20)
-    }
-
-    private var saveButtonView: some View {
-        Button {
-            var finalModel = selectedModelId.trimmingCharacters(in: .whitespacesAndNewlines)
-            if finalModel.contains("3.8") || finalModel.isEmpty {
-                finalModel = "gemini-2.5-flash"
-                selectedModelId = "gemini-2.5-flash"
-            }
-            GeminiService.storedApiKey = apiKeyInput
-            GeminiService.storedModelId = finalModel
-            showSavedAlert = true
-        } label: {
-            HStack {
-                Image(systemName: "checkmark.circle.fill")
-                Text("Lưu Cấu Hình")
-            }
-            .font(.headline.bold())
-            .foregroundStyle(.white)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 16)
-            .background(
-                LinearGradient(
-                    colors: [Color(hex: "6C5CE7"), Color(hex: "00CEC9")],
-                    startPoint: .leading,
-                    endPoint: .trailing
-                )
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .shadow(color: Color(hex: "6C5CE7").opacity(0.4), radius: 12, x: 0, y: 6)
-        }
-        .padding(.horizontal, 20)
-        .padding(.top, 6)
-    }
-}
-
-// MARK: - Model Option Row (Extracted to prevent compiler type-check timeout)
-
-private struct ModelOptionRow: View {
-    let model: GeminiModelOption
-    let isSelected: Bool
-    let onSelect: () -> Void
-
-    var body: some View {
-        Button(action: onSelect) {
-            HStack(spacing: 12) {
-                selectionIndicator
-
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 8) {
-                        Text(model.displayName)
-                            .font(.subheadline.bold())
-                            .foregroundStyle(.white)
-
-                        Text(model.badge)
-                            .font(.caption2.bold())
-                            .foregroundStyle(isSelected ? Color(hex: "00CEC9") : Color.white.opacity(0.6))
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color.white.opacity(0.08))
-                            .clipShape(Capsule())
-                    }
-
-                    Text(model.description)
-                        .font(.caption)
-                        .foregroundStyle(.white.opacity(0.65))
-                }
-
-                Spacer()
-            }
-            .padding(14)
-            .background(isSelected ? Color(hex: "6C5CE7").opacity(0.18) : Color.white.opacity(0.04))
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(isSelected ? Color(hex: "6C5CE7").opacity(0.5) : Color.white.opacity(0.08), lineWidth: 1)
-            )
-        }
-    }
-
-    private var selectionIndicator: some View {
-        ZStack {
-            Circle()
-                .stroke(isSelected ? Color(hex: "00CEC9") : Color.white.opacity(0.2), lineWidth: 2)
-                .frame(width: 22, height: 22)
-
-            if isSelected {
-                Circle()
-                    .fill(Color(hex: "00CEC9"))
-                    .frame(width: 12, height: 12)
+                Text("Mô hình \(selectedModelId) và API Key đã được cập nhật.")
             }
         }
     }

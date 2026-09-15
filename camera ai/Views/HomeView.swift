@@ -3,6 +3,7 @@
 //  camera ai
 //
 //  Created by vdt on 15/9/26.
+//  Redesigned following Apple Human Interface Guidelines (Apple Design System)
 //
 
 import SwiftUI
@@ -13,230 +14,36 @@ struct HomeView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                // Background Gradient
-                LinearGradient(
-                    colors: [Color(hex: "0B0A17"), Color(hex: "171530"), Color(hex: "080710")],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .ignoresSafeArea()
+                // Apple System Grouped Background (Adaptive Light/Dark)
+                AppleTheme.background
+                    .ignoresSafeArea()
 
                 ScrollView {
-                    VStack(spacing: 24) {
-                        // Top Branding Header
-                        VStack(spacing: 8) {
-                            HStack {
-                                Image(systemName: "sparkles")
-                                    .foregroundStyle(Color(hex: "00CEC9"))
-                                Text("TÓM TẮT VĂN BẢN AI")
-                                    .font(.caption2.bold())
-                                    .tracking(1.5)
-                                    .foregroundStyle(Color(hex: "A29BFE"))
+                    VStack(spacing: 20) {
+                        // Header Status Card (Apple Inset Style)
+                        headerStatusCard
 
-                                Button {
-                                    viewModel.showSettings = true
-                                } label: {
-                                    HStack(spacing: 4) {
-                                        Circle()
-                                            .fill(Color(hex: "00CEC9"))
-                                            .frame(width: 6, height: 6)
-                                        Text(GeminiService.storedModelId)
-                                            .font(.system(size: 10, weight: .bold))
-                                            .foregroundStyle(.white.opacity(0.8))
-                                    }
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(Color.white.opacity(0.1))
-                                    .clipShape(Capsule())
-                                }
-                            }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(Color.white.opacity(0.06))
-                            .clipShape(Capsule())
+                        // Quick Capture Actions (Camera & Library)
+                        actionCardsSection
 
-                            Text("Tóm Tắt Văn Bản Thông Minh")
-                                .font(.system(size: 26, weight: .bold, design: .rounded))
-                                .foregroundStyle(.white)
+                        // Scanned Pages Section
+                        scannedPagesSection
 
-                            Text("Quét chữ On-Device không tốn mạng, AI phân tích bố cục chuẩn & trích xuất ý chính ngắn gọn.")
-                                .font(.subheadline)
-                                .multilineTextAlignment(.center)
-                                .foregroundStyle(.white.opacity(0.7))
-                                .padding(.horizontal, 24)
-                        }
-                        .padding(.top, 10)
-
-                        // Feature Quick Badges (PDF, Slides, Markdown)
-                        HStack(spacing: 8) {
-                            FeaturePill(icon: "doc.text.fill", text: "Xuất PDF A4")
-                            FeaturePill(icon: "rectangle.inset.filled.and.person.filled", text: "Xuất Slide 16:9")
-                            FeaturePill(icon: "arrow.down.doc.fill", text: "Tệp Markdown")
-                        }
-                        .padding(.horizontal, 20)
-
-                        // Capture Source Buttons (Camera & Photo Library)
-                        HStack(spacing: 14) {
-                            // Camera Button
-                            ActionButtonCard(
-                                icon: "camera.viewfinder",
-                                title: "Chụp Văn Bản",
-                                subtitle: "Quét trực tiếp qua Camera",
-                                gradientColors: [Color(hex: "6C5CE7"), Color(hex: "A29BFE")]
-                            ) {
-                                viewModel.showCamera = true
-                            }
-
-                            // Photo Library Button (Batch)
-                            ActionButtonCard(
-                                icon: "photo.stack.fill",
-                                title: "Chọn Thư Viện",
-                                subtitle: "Chọn nhiều ảnh cùng lúc",
-                                gradientColors: [Color(hex: "00CEC9"), Color(hex: "0984E3")]
-                            ) {
-                                viewModel.showPhotoLibrary = true
-                            }
-                        }
-                        .padding(.horizontal, 20)
-
-                        // Selected Slides Section
-                        VStack(alignment: .leading, spacing: 12) {
-                            HStack {
-                                Text("Danh Sách Trang Cần Tóm Tắt")
-                                    .font(.headline.bold())
-                                    .foregroundStyle(.white)
-
-                                Spacer()
-
-                                if viewModel.hasImages {
-                                    Text("\(viewModel.selectedImages.count) trang")
-                                        .font(.caption.bold())
-                                        .foregroundStyle(Color(hex: "00CEC9"))
-                                        .padding(.horizontal, 8)
-                                        .padding(.vertical, 3)
-                                        .background(Color(hex: "00CEC9").opacity(0.15))
-                                        .clipShape(Capsule())
-
-                                    Button("Xoá hết") {
-                                        withAnimation {
-                                            viewModel.clearImages()
-                                        }
-                                    }
-                                    .font(.caption.bold())
-                                    .foregroundStyle(Color(hex: "FD79A8"))
-                                }
-                            }
-                            .padding(.horizontal, 20)
-
-                            if viewModel.selectedImages.isEmpty {
-                                EmptySlidePlaceholder {
-                                    viewModel.showPhotoLibrary = true
-                                }
-                                .padding(.horizontal, 20)
-                            } else {
-                                // Horizontal Slides Carousel
-                                ScrollView(.horizontal, showsIndicators: false) {
-                                    HStack(spacing: 14) {
-                                        ForEach(Array(viewModel.selectedImages.enumerated()), id: \.offset) { index, image in
-                                            SlideThumbnailCard(
-                                                index: index + 1,
-                                                image: image,
-                                                onCrop: {
-                                                    viewModel.startCropping(at: index)
-                                                },
-                                                onDelete: {
-                                                    withAnimation {
-                                                        viewModel.removeImage(at: index)
-                                                    }
-                                                }
-                                            )
-                                        }
-                                    }
-                                    .padding(.horizontal, 20)
-                                    .padding(.vertical, 4)
-                                }
-                            }
-                        }
-
-                        // OCR On-Device Highlight Banner
+                        // Offline OCR Step Indicator Banner
                         if viewModel.hasImages {
-                            HStack(spacing: 12) {
-                                Image(systemName: "text.viewfinder")
-                                    .font(.title2)
-                                    .foregroundStyle(Color(hex: "00CEC9"))
-
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("Bước 1: Trích Xuất Văn Bản Trên Máy")
-                                        .font(.caption.bold())
-                                        .foregroundStyle(Color(hex: "00CEC9"))
-                                    Text("Toàn bộ \(viewModel.selectedImages.count) trang sẽ được nhận diện chữ offline. Bạn sẽ được xem và chỉnh sửa trước khi tóm tắt AI.")
-                                        .font(.caption2)
-                                        .foregroundStyle(.white.opacity(0.75))
-                                }
-                                Spacer()
-                            }
-                            .padding(14)
-                            .background(Color(hex: "00CEC9").opacity(0.1))
-                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                    .stroke(Color(hex: "00CEC9").opacity(0.25), lineWidth: 1)
-                            )
-                            .padding(.horizontal, 20)
+                            ocrInfoBanner
                         }
 
-                        // Action CTA: Start Image to Text OCR
-                        VStack(spacing: 12) {
-                            Button {
-                                Task {
-                                    await viewModel.scanImagesToText()
-                                }
-                            } label: {
-                                HStack(spacing: 10) {
-                                    Image(systemName: "doc.text.magnifyingglass")
-                                        .font(.headline)
-                                    Text(viewModel.hasImages ? "Chuyển \(viewModel.selectedImages.count) Trang Thành Văn Bản" : "Hãy Chụp Hoặc Chọn Văn Bản")
-                                        .font(.system(.headline, design: .rounded).bold())
-                                }
-                                .foregroundStyle(.white)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 18)
-                                .background(
-                                    LinearGradient(
-                                        colors: viewModel.hasImages ?
-                                            [Color(hex: "6C5CE7"), Color(hex: "00CEC9")] :
-                                            [Color.white.opacity(0.15), Color.white.opacity(0.1)],
-                                        startPoint: .leading,
-                                        endPoint: .trailing
-                                    )
-                                )
-                                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                                .shadow(
-                                    color: viewModel.hasImages ? Color(hex: "6C5CE7").opacity(0.4) : .clear,
-                                    radius: 12, x: 0, y: 6
-                                )
-                            }
-                            .disabled(!viewModel.hasImages)
-
-                            // Demo Mode Button (instant preview)
-                            Button {
-                                viewModel.runDemoMode()
-                            } label: {
-                                HStack(spacing: 6) {
-                                    Image(systemName: "play.circle.fill")
-                                    Text("Xem Mẫu Thử Nghiệm & Xuất File (Demo)")
-                                }
-                                .font(.footnote.bold())
-                                .foregroundStyle(Color(hex: "A29BFE"))
-                            }
-                            .padding(.top, 4)
-                        }
-                        .padding(.horizontal, 20)
+                        // Primary Call to Action
+                        primaryActionButtonSection
                     }
-                    .padding(.bottom, 36)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 10)
+                    .padding(.bottom, 32)
                 }
             }
-            .navigationBarTitleDisplayMode(.inline)
+            .navigationTitle("Tài Liệu AI")
+            .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -244,27 +51,24 @@ struct HomeView: View {
                     } label: {
                         HStack(spacing: 6) {
                             Circle()
-                                .fill(viewModel.apiKeyConfigured ? Color(hex: "00CEC9") : Color(hex: "FD79A8"))
+                                .fill(viewModel.apiKeyConfigured ? AppleTheme.green : AppleTheme.orange)
                                 .frame(width: 8, height: 8)
-                            Image(systemName: "gearshape.fill")
-                                .foregroundStyle(.white)
+                            Image(systemName: "gearshape")
+                                .font(.body.weight(.medium))
                         }
-                        .padding(8)
-                        .background(Color.white.opacity(0.08))
-                        .clipShape(Circle())
                     }
                 }
             }
             .sheet(isPresented: $viewModel.showCamera) {
                 CameraPickerView { image in
-                    withAnimation {
+                    withAnimation(.spring(response: 0.35)) {
                         viewModel.addImage(image)
                     }
                 }
             }
             .sheet(isPresented: $viewModel.showPhotoLibrary) {
                 PhotoLibraryPickerView { images in
-                    withAnimation {
+                    withAnimation(.spring(response: 0.35)) {
                         viewModel.addImages(images)
                     }
                 }
@@ -308,93 +112,255 @@ struct HomeView: View {
                 }
                 Button("Hủy", role: .cancel) {}
             } message: {
-                Text("Vui lòng dán Gemini API Key từ Google AI Studio vào Cài đặt để phân tích bài giảng trực tiếp, hoặc chọn Xem Thử Nghiệm Ngay.")
+                Text("Vui lòng nhập Gemini API Key từ Google AI Studio trong Cài Đặt để tóm tắt bài giảng bằng AI, hoặc chọn Xem Thử Nghiệm Ngay.")
             }
-            .alert("Thông Báo Lỗi", isPresented: $viewModel.showErrorAlert) {
+            .alert("Thông Báo", isPresented: $viewModel.showErrorAlert) {
                 Button("Đóng", role: .cancel) {}
             } message: {
                 Text(viewModel.errorMessage ?? "Đã xảy ra lỗi không xác định.")
             }
         }
     }
-}
 
-// MARK: - Feature Pill
+    // MARK: - Subviews
 
-private struct FeaturePill: View {
-    let icon: String
-    let text: String
+    private var headerStatusCard: some View {
+        HStack(alignment: .center, spacing: 14) {
+            ZStack {
+                Circle()
+                    .fill(AppleTheme.blue.opacity(0.12))
+                    .frame(width: 44, height: 44)
 
-    var body: some View {
-        HStack(spacing: 4) {
-            Image(systemName: icon)
-                .font(.system(size: 10))
-            Text(text)
-                .font(.system(size: 11, weight: .semibold))
-        }
-        .foregroundStyle(.white.opacity(0.85))
-        .padding(.horizontal, 10)
-        .padding(.vertical, 5)
-        .background(Color.white.opacity(0.06))
-        .clipShape(Capsule())
-        .overlay(
-            Capsule().stroke(Color.white.opacity(0.12), lineWidth: 1)
-        )
-    }
-}
+                Image(systemName: "sparkles")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(AppleTheme.blue)
+            }
 
-// MARK: - Action Button Card
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Quét & Tóm Tắt Bài Giảng")
+                    .font(.headline)
+                    .foregroundStyle(AppleTheme.primaryText)
 
-private struct ActionButtonCard: View {
-    let icon: String
-    let title: String
-    let subtitle: String
-    let gradientColors: [Color]
-    let action: () -> Void
+                Text("Nhận diện chữ On-Device offline • Tóm tắt & Sơ đồ tư duy AI")
+                    .font(.footnote)
+                    .foregroundStyle(AppleTheme.secondaryText)
+            }
 
-    var body: some View {
-        Button(action: action) {
-            VStack(alignment: .leading, spacing: 10) {
-                ZStack {
-                    Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: gradientColors,
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .frame(width: 46, height: 46)
+            Spacer()
 
-                    Image(systemName: icon)
-                        .font(.title3.bold())
-                        .foregroundStyle(.white)
+            Button {
+                viewModel.showSettings = true
+            } label: {
+                HStack(spacing: 4) {
+                    Text(GeminiService.storedModelId)
+                        .font(.system(size: 11, weight: .semibold))
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 9, weight: .bold))
                 }
+                .foregroundStyle(AppleTheme.blue)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(AppleTheme.blue.opacity(0.1))
+                .clipShape(Capsule())
+            }
+        }
+        .appleCardStyle(padding: 14)
+    }
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.headline.bold())
-                        .foregroundStyle(.white)
-                    Text(subtitle)
-                        .font(.caption)
-                        .foregroundStyle(.white.opacity(0.65))
+    private var actionCardsSection: some View {
+        HStack(spacing: 12) {
+            // Camera Card
+            Button {
+                viewModel.showCamera = true
+            } label: {
+                VStack(alignment: .leading, spacing: 12) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(AppleTheme.blue)
+                            .frame(width: 44, height: 44)
+
+                        Image(systemName: "camera.viewfinder")
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundStyle(.white)
+                    }
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Chụp Ảnh")
+                            .font(.headline)
+                            .foregroundStyle(AppleTheme.primaryText)
+
+                        Text("Quét trực tiếp")
+                            .font(.subheadline)
+                            .foregroundStyle(AppleTheme.secondaryText)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .appleCardStyle(padding: 16)
+            }
+            .buttonStyle(.plain)
+
+            // Photo Library Card
+            Button {
+                viewModel.showPhotoLibrary = true
+            } label: {
+                VStack(alignment: .leading, spacing: 12) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(AppleTheme.indigo)
+                            .frame(width: 44, height: 44)
+
+                        Image(systemName: "photo.on.rectangle.angled")
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundStyle(.white)
+                    }
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Thư Viện")
+                            .font(.headline)
+                            .foregroundStyle(AppleTheme.primaryText)
+
+                        Text("Chọn nhiều ảnh")
+                            .font(.subheadline)
+                            .foregroundStyle(AppleTheme.secondaryText)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .appleCardStyle(padding: 16)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private var scannedPagesSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text(viewModel.hasImages ? "TRANG ĐÃ CHỌN (\(viewModel.selectedImages.count))" : "TRANG ĐÃ CHỌN")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(AppleTheme.secondaryText)
+
+                Spacer()
+
+                if viewModel.hasImages {
+                    Button(role: .destructive) {
+                        withAnimation {
+                            viewModel.clearImages()
+                        }
+                    } label: {
+                        Text("Xóa tất cả")
+                            .font(.footnote.weight(.medium))
+                            .foregroundStyle(AppleTheme.red)
+                    }
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(18)
-            .background(Color.white.opacity(0.06))
-            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .stroke(Color.white.opacity(0.12), lineWidth: 1)
-            )
+            .padding(.horizontal, 4)
+
+            if viewModel.selectedImages.isEmpty {
+                Button {
+                    viewModel.showPhotoLibrary = true
+                } label: {
+                    VStack(spacing: 12) {
+                        Image(systemName: "plus.rectangle.on.rectangle")
+                            .font(.system(size: 32))
+                            .foregroundStyle(AppleTheme.secondaryText.opacity(0.6))
+
+                        VStack(spacing: 2) {
+                            Text("Chưa chọn hình ảnh nào")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(AppleTheme.primaryText)
+
+                            Text("Chụp văn bản hoặc chọn ảnh tài liệu để bắt đầu")
+                                .font(.footnote)
+                                .foregroundStyle(AppleTheme.secondaryText)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 30)
+                    .appleCardStyle(padding: 16)
+                }
+                .buttonStyle(.plain)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
+                        ForEach(Array(viewModel.selectedImages.enumerated()), id: \.offset) { index, image in
+                            AppleSlideThumbnailCard(
+                                index: index + 1,
+                                image: image,
+                                onCrop: { viewModel.startCropping(at: index) },
+                                onDelete: {
+                                    withAnimation {
+                                        viewModel.removeImage(at: index)
+                                    }
+                                }
+                            )
+                        }
+                    }
+                    .padding(.vertical, 2)
+                }
+            }
         }
+    }
+
+    private var ocrInfoBanner: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "text.viewfinder")
+                .font(.title3)
+                .foregroundStyle(AppleTheme.blue)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Bước 1: Trích xuất chữ trên máy (Offline)")
+                    .font(.footnote.weight(.bold))
+                    .foregroundStyle(AppleTheme.primaryText)
+
+                Text("Nhận diện văn bản trên thiết bị không cần mạng. Bạn có thể chỉnh sửa trước khi tóm tắt.")
+                    .font(.caption)
+                    .foregroundStyle(AppleTheme.secondaryText)
+            }
+
+            Spacer()
+        }
+        .appleCardStyle(padding: 12)
+    }
+
+    private var primaryActionButtonSection: some View {
+        VStack(spacing: 10) {
+            Button {
+                Task {
+                    await viewModel.scanImagesToText()
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "doc.text.magnifyingglass")
+                        .font(.body.bold())
+                    Text(viewModel.hasImages ? "Chuyển \(viewModel.selectedImages.count) Trang Thành Văn Bản" : "Chụp Hoặc Chọn Văn Bản")
+                        .font(.headline.weight(.semibold))
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 6)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .tint(AppleTheme.blue)
+            .clipShape(RoundedRectangle(cornerRadius: AppleTheme.buttonRadius, style: .continuous))
+            .disabled(!viewModel.hasImages)
+
+            Button {
+                viewModel.runDemoMode()
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "play.circle")
+                    Text("Xem bài giảng thử nghiệm & Sơ đồ tư duy (Demo)")
+                }
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(AppleTheme.blue)
+            }
+        }
+        .padding(.top, 4)
     }
 }
 
-// MARK: - Slide Thumbnail Card
+// MARK: - Apple Thumbnail Card
 
-private struct SlideThumbnailCard: View {
+private struct AppleSlideThumbnailCard: View {
     let index: Int
     let image: UIImage
     let onCrop: () -> Void
@@ -403,106 +369,53 @@ private struct SlideThumbnailCard: View {
     var body: some View {
         ZStack(alignment: .topTrailing) {
             Button(action: onCrop) {
-                VStack(spacing: 8) {
+                VStack(alignment: .leading, spacing: 8) {
                     ZStack(alignment: .bottomTrailing) {
                         Image(uiImage: image)
                             .resizable()
                             .scaledToFill()
-                            .frame(width: 140, height: 100)
+                            .frame(width: 130, height: 95)
                             .clipped()
-                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
 
-                        // Crop Badge Indicator
-                        HStack(spacing: 4) {
+                        // Crop Pill
+                        HStack(spacing: 3) {
                             Image(systemName: "crop")
                                 .font(.system(size: 9, weight: .bold))
-                            Text("Cắt ảnh")
+                            Text("Cắt")
                                 .font(.system(size: 9, weight: .bold))
                         }
                         .foregroundStyle(.white)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 3)
-                        .background(Color.black.opacity(0.65))
+                        .background(.ultraThinMaterial)
                         .clipShape(Capsule())
-                        .padding(6)
+                        .padding(5)
                     }
 
                     HStack {
                         Text("Trang \(index)")
-                            .font(.caption2.bold())
-                            .foregroundStyle(.white.opacity(0.9))
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(AppleTheme.primaryText)
                         Spacer()
-                        Image(systemName: "crop.rotate")
+                        Image(systemName: "pencil")
                             .font(.caption2)
-                            .foregroundStyle(Color(hex: "00CEC9"))
+                            .foregroundStyle(AppleTheme.secondaryText)
                     }
-                    .padding(.horizontal, 4)
+                    .padding(.horizontal, 2)
                 }
-                .padding(8)
-                .background(Color.white.opacity(0.08))
-                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .stroke(Color.white.opacity(0.12), lineWidth: 1)
-                )
+                .appleCardStyle(padding: 8)
             }
             .buttonStyle(.plain)
 
-            // Delete Button
+            // Delete Badge Button
             Button(action: onDelete) {
-                ZStack {
-                    Circle()
-                        .fill(Color(hex: "FD79A8"))
-                        .frame(width: 24, height: 24)
-                    Image(systemName: "xmark")
-                        .font(.caption2.bold())
-                        .foregroundStyle(.white)
-                }
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 20))
+                    .foregroundStyle(Color(uiColor: .systemGray2))
+                    .background(Circle().fill(Color(uiColor: .systemBackground)))
             }
             .offset(x: 6, y: -6)
-        }
-    }
-}
-
-// MARK: - Empty State Placeholder
-
-private struct EmptySlidePlaceholder: View {
-    let onSelect: () -> Void
-
-    var body: some View {
-        Button(action: onSelect) {
-            VStack(spacing: 12) {
-                ZStack {
-                    Circle()
-                        .fill(Color.white.opacity(0.05))
-                        .frame(width: 64, height: 64)
-
-                    Image(systemName: "plus.rectangle.on.rectangle")
-                        .font(.title2)
-                        .foregroundStyle(Color(hex: "A29BFE"))
-                }
-
-                Text("Chưa có văn bản nào được chọn")
-                    .font(.subheadline.bold())
-                    .foregroundStyle(.white.opacity(0.85))
-
-                Text("Chụp ảnh văn bản hoặc chọn nhiều ảnh từ thư viện để bắt đầu")
-                    .font(.caption)
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(.white.opacity(0.55))
-                    .padding(.horizontal, 20)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 32)
-            .background(Color.white.opacity(0.03))
-            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .stroke(
-                        Color.white.opacity(0.1),
-                        style: StrokeStyle(lineWidth: 1.5, dash: [6, 6])
-                    )
-            )
         }
     }
 }

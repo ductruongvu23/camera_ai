@@ -201,15 +201,17 @@ final class ScanViewModel {
         do {
             processingState = .processingAI
 
-            let geminiResult = try await geminiService.processLectureText(textToSummarize)
+            let execResult = try await geminiService.processLectureText(textToSummarize)
 
             let session = ScanSession(
                 images: selectedImages,
                 rawTexts: [textToSummarize],
                 mergedRawText: textToSummarize,
-                formattedContent: geminiResult.formattedLecture,
-                summaryPoints: geminiResult.summaryPoints,
-                mindmap: geminiResult.mindmap,
+                formattedContent: execResult.response.formattedLecture,
+                summaryPoints: execResult.response.summaryPoints,
+                mindmap: execResult.response.mindmap,
+                modelUsed: execResult.modelUsed,
+                isFallbackUsed: execResult.isFallbackUsed,
                 createdAt: .now
             )
 
@@ -235,6 +237,8 @@ final class ScanViewModel {
             formattedContent: sample.formattedLecture,
             summaryPoints: sample.summaryPoints,
             mindmap: sample.mindmap,
+            modelUsed: "gemini-2.5-flash",
+            isFallbackUsed: false,
             createdAt: .now
         )
         showResults = true

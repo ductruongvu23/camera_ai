@@ -15,9 +15,17 @@ struct GeminiModelOption: Identifiable, Hashable {
     let badge: String
 }
 
+/// Execution result metadata returned to ViewModel/UI
+struct GeminiExecutionResult {
+    let response: GeminiResponse
+    let modelUsed: String
+    let isFallbackUsed: Bool
+    let fallbackNotice: String?
+}
+
 /// Service for processing OCR text through the Gemini REST API.
 /// Uses native URLSession — no third-party SDK required.
-/// Includes automatic fallback across models to prevent API 404 errors.
+/// Includes automatic fallback across models to prevent API 404/503 errors.
 @MainActor
 final class GeminiService {
 
@@ -27,28 +35,34 @@ final class GeminiService {
 
     static let availableModels: [GeminiModelOption] = [
         GeminiModelOption(
-            id: "gemini-2.5-flash",
-            displayName: "Gemini 2.5 Flash",
-            description: "Khuyên dùng • Tốc độ siêu nhanh, máy chủ ổn định 100%, không lo nghẽn",
+            id: "gemini-3.5-flash",
+            displayName: "Gemini 3.5 Flash",
+            description: "Khuyên dùng • Cân bằng tốc độ và độ thông minh xuất sắc",
             badge: "Khuyên dùng"
         ),
         GeminiModelOption(
-            id: "gemini-2.0-flash",
-            displayName: "Gemini 2.0 Flash",
-            description: "Thế hệ 2.0 • Ổn định và phản hồi tức thì",
-            badge: "2.0 Flash"
+            id: "gemini-3.5-flash-lite",
+            displayName: "Gemini 3.5 Flash-Lite",
+            description: "Dung lượng cao nhất • Phản hồi tức thì, không bao giờ nghẽn 503",
+            badge: "Siêu tốc"
         ),
         GeminiModelOption(
-            id: "gemini-1.5-flash",
-            displayName: "Gemini 1.5 Flash",
-            description: "Thế hệ 1.5 • Dung lượng máy chủ lớn nhất toàn cầu",
-            badge: "1.5 Flash"
+            id: "gemini-3.7-flash",
+            displayName: "Gemini 3.7 Flash",
+            description: "Thế hệ 3.7 Flash • Suy luận sâu và bóc tách bài giảng",
+            badge: "3.7 Flash"
         ),
         GeminiModelOption(
-            id: "gemini-2.5-pro",
-            displayName: "Gemini 2.5 Pro",
-            description: "Chuyên sâu • Phân tích tài liệu học thuật phức tạp",
-            badge: "2.5 Pro"
+            id: "gemini-3.6-flash",
+            displayName: "Gemini 3.6 Flash",
+            description: "Thế hệ 3.6 Flash • Ổn định và chính xác cao",
+            badge: "3.6 Flash"
+        ),
+        GeminiModelOption(
+            id: "gemini-3.8-flash-medium",
+            displayName: "Gemini 3.8 Flash Medium",
+            description: "Thế hệ 3.8 Flash • Thử nghiệm (Tự động chuyển dự phòng nếu Google quá tải 503)",
+            badge: "3.8 Flash"
         )
     ]
 
@@ -62,24 +76,16 @@ final class GeminiService {
         }
     }
 
-    /// Retrieve the selected model ID from UserDefaults (defaults to gemini-2.5-flash).
+    /// Retrieve the selected model ID from UserDefaults (defaults to gemini-3.5-flash).
     static var storedModelId: String {
         get {
             let saved = UserDefaults.standard.string(forKey: modelStorageKey) ?? ""
             let clean = cleanModelId(saved)
-            // If empty, contains 3.8 (server capacity failure), 3.0, or not in verified models, enforce gemini-2.5-flash
-            if clean.isEmpty || clean.contains("3.8") || clean.contains("3.0") || !availableModels.contains(where: { $0.id == clean }) {
-                UserDefaults.standard.set("gemini-2.5-flash", forKey: modelStorageKey)
-                return "gemini-2.5-flash"
-            }
-            return clean
+            return clean.isEmpty ? "gemini-3.5-flash" : clean
         }
         set {
-            var clean = cleanModelId(newValue)
-            if clean.contains("3.8") || clean.contains("3.0") || clean.isEmpty {
-                clean = "gemini-2.5-flash"
-            }
-            UserDefaults.standard.set(clean, forKey: modelStorageKey)
+            let clean = cleanModelId(newValue)
+            UserDefaults.standard.set(clean.isEmpty ? "gemini-3.5-flash" : clean, forKey: modelStorageKey)
         }
     }
 
@@ -114,9 +120,7 @@ final class GeminiService {
 
         let validModels = models.filter { item in
             guard let methods = item.supportedGenerationMethods else { return false }
-            let clean = cleanModelId(item.name)
-            // Filter out 3.8 models that currently suffer from Google 503 capacity outages
-            return methods.contains("generateContent") && !clean.contains("3.8")
+            return methods.contains("generateContent")
         }
 
         guard !validModels.isEmpty else { return availableModels }
@@ -133,7 +137,6 @@ final class GeminiService {
             )
         }
 
-        // Sort Flash models first, with highest versions prioritized
         return options.sorted { a, b in
             if a.id.contains("flash") && !b.id.contains("flash") { return true }
             if !a.id.contains("flash") && b.id.contains("flash") { return false }
@@ -141,12 +144,12 @@ final class GeminiService {
         }
     }
 
-    /// Process raw/edited text through Gemini with automatic fallback if a model is unavailable.
+    /// Process raw/edited text through Gemini with flexible selection and automatic resilient fallback.
     func processLectureText(
         _ text: String,
         apiKeyOverride: String? = nil,
         modelIdOverride: String? = nil
-    ) async throws -> GeminiResponse {
+    ) async throws -> GeminiExecutionResult {
         let key = (apiKeyOverride ?? Self.storedApiKey).trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard !key.isEmpty else {
@@ -154,19 +157,18 @@ final class GeminiService {
         }
 
         let rawModelId = (modelIdOverride ?? Self.storedModelId)
-        var cleanPrimary = Self.cleanModelId(rawModelId)
-        if cleanPrimary.contains("3.8") || cleanPrimary.isEmpty {
-            cleanPrimary = "gemini-2.5-flash"
-        }
+        let primaryModel = Self.cleanModelId(rawModelId).isEmpty ? "gemini-3.5-flash" : Self.cleanModelId(rawModelId)
 
-        // Candidate fallback order: user chosen model -> 2.5-flash -> 2.0-flash -> 1.5-flash -> 2.5-pro
+        // Resilient candidate chain:
+        // Try user's chosen model FIRST (100% flexible)
+        // If it fails with 503 capacity or 404, fall through active Gemini 3 models (3.5-flash-lite is highest capacity)
+        var candidateModels = [primaryModel]
         let fallbackSequence = [
-            "gemini-2.5-flash",
-            "gemini-2.0-flash",
-            "gemini-1.5-flash",
-            "gemini-2.5-pro"
+            "gemini-3.5-flash-lite",
+            "gemini-3.5-flash",
+            "gemini-3.7-flash",
+            "gemini-3.6-flash"
         ]
-        var candidateModels = [cleanPrimary]
         for fb in fallbackSequence {
             if !candidateModels.contains(fb) {
                 candidateModels.append(fb)
@@ -175,12 +177,17 @@ final class GeminiService {
 
         var lastError: Error = GeminiError.emptyResponse
 
-        for modelId in candidateModels {
+        for (index, modelId) in candidateModels.enumerated() {
             do {
                 let response = try await callGeminiAPI(text: text, modelId: modelId, apiKey: key)
-                // Persist the working model
-                Self.storedModelId = modelId
-                return response
+                let isFallback = (index > 0)
+                let notice = isFallback ? "Mô hình \(primaryModel) tạm thời hết dung lượng (503). Đã tự động hoàn tất bằng \(modelId)." : nil
+                return GeminiExecutionResult(
+                    response: response,
+                    modelUsed: modelId,
+                    isFallbackUsed: isFallback,
+                    fallbackNotice: notice
+                )
             } catch GeminiError.modelUnavailable(let failedModel, let msg) {
                 print("Gemini model \(failedModel) unavailable (\(msg)), trying fallback...")
                 lastError = GeminiError.modelUnavailable(modelId: failedModel, message: msg)
@@ -197,18 +204,6 @@ final class GeminiService {
                 throw GeminiError.apiError(msg)
             } catch {
                 throw error
-            }
-        }
-
-        // Dynamic fallback: Query Google's live list of models for this API key
-        let liveOptions = await Self.fetchLiveModels(apiKey: key)
-        for live in liveOptions where !candidateModels.contains(live.id) {
-            do {
-                let response = try await callGeminiAPI(text: text, modelId: live.id, apiKey: key)
-                Self.storedModelId = live.id
-                return response
-            } catch {
-                continue
             }
         }
 

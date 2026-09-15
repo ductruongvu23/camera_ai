@@ -3,6 +3,7 @@
 //  camera ai
 //
 //  Created by vdt on 15/9/26.
+//  Redesigned following Apple Human Interface Guidelines (Apple Design System)
 //
 
 import SwiftUI
@@ -15,9 +16,17 @@ enum ResultTabSelection: Int, CaseIterable {
 
     var title: String {
         switch self {
-        case .summary: return "⚡ Tóm Tắt"
-        case .lecture: return "📚 Bố Cục"
-        case .mindmap: return "🧠 Sơ Đồ Tư Duy"
+        case .summary: return "Tóm Tắt"
+        case .lecture: return "Bài Giảng"
+        case .mindmap: return "Sơ Đồ Tư Duy"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .summary: return "bolt.fill"
+        case .lecture: return "book.fill"
+        case .mindmap: return "brain.head.profile"
         }
     }
 }
@@ -26,93 +35,43 @@ struct ResultTabView: View {
     let session: ScanSession
     let onDismiss: () -> Void
 
-    @State private var selectedTab: ResultTabSelection = .mindmap
+    @State private var selectedTab: ResultTabSelection = .summary
     @State private var showExportSheet: Bool = false
     @State private var shareItems: [Any] = []
-    @State private var isExporting: Bool = false
     @State private var exportSuccessToast: String?
 
     var body: some View {
         NavigationStack {
             ZStack {
-                // Ambient Background
-                LinearGradient(
-                    colors: [Color(hex: "0D0B1C"), Color(hex: "171630"), Color(hex: "080711")],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .ignoresSafeArea()
+                AppleTheme.background
+                    .ignoresSafeArea()
 
                 VStack(spacing: 0) {
-                    // Export & Quick Action Bar
-                    HStack(spacing: 8) {
-                        // Export A4 PDF Button
-                        ExportActionButton(
-                            icon: "doc.text.fill",
-                            title: "PDF A4",
-                            color: Color(hex: "00CEC9")
-                        ) {
-                            exportPDF(format: .documentA4)
+                    // Fallback notice banner if 503 fallback was triggered
+                    if session.isFallbackUsed {
+                        HStack(spacing: 8) {
+                            Image(systemName: "info.circle.fill")
+                                .foregroundStyle(AppleTheme.orange)
+                            Text("Model yêu cầu tạm thời quá tải 503. Đã tự động tóm tắt bằng \(session.modelUsed).")
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(AppleTheme.primaryText)
+                            Spacer()
                         }
-
-                        // Export 16:9 Presentation Slides
-                        ExportActionButton(
-                            icon: "rectangle.inset.filled.and.person.filled",
-                            title: "Slide PDF",
-                            color: Color(hex: "6C5CE7")
-                        ) {
-                            exportPDF(format: .presentation16x9)
-                        }
-
-                        // Export Markdown (.md)
-                        ExportActionButton(
-                            icon: "arrow.down.doc.fill",
-                            title: "Tệp .MD",
-                            color: Color(hex: "FD79A8")
-                        ) {
-                            exportMarkdownFile()
-                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(AppleTheme.orange.opacity(0.12))
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 10)
-                    .padding(.bottom, 6)
 
-                    // Custom Segmented Control (3 Tabs)
-                    HStack(spacing: 4) {
+                    // Native Apple Segmented Control
+                    Picker("Chế độ xem", selection: $selectedTab) {
                         ForEach(ResultTabSelection.allCases, id: \.self) { tab in
-                            Button {
-                                withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
-                                    selectedTab = tab
-                                }
-                            } label: {
-                                Text(tab.title)
-                                    .font(.system(.subheadline, design: .rounded).bold())
-                                    .foregroundStyle(selectedTab == tab ? .white : .white.opacity(0.6))
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 10)
-                                    .background(
-                                        ZStack {
-                                            if selectedTab == tab {
-                                                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                                    .fill(
-                                                        tabColor(for: tab)
-                                                    )
-                                                    .shadow(color: Color(hex: "6C5CE7").opacity(0.4), radius: 8, x: 0, y: 4)
-                                            }
-                                        }
-                                    )
-                            }
+                            Label(tab.title, systemImage: tab.icon)
+                                .tag(tab)
                         }
                     }
-                    .padding(4)
-                    .background(Color.white.opacity(0.06))
-                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .stroke(Color.white.opacity(0.1), lineWidth: 1)
-                    )
+                    .pickerStyle(.segmented)
                     .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
+                    .padding(.vertical, 10)
 
                     // Tab Pages
                     TabView(selection: $selectedTab) {
@@ -128,29 +87,29 @@ struct ResultTabView: View {
                     .tabViewStyle(.page(indexDisplayMode: .never))
                 }
 
-                // Toast Notification
+                // Apple-style Floating Toast
                 if let toast = exportSuccessToast {
                     VStack {
                         Spacer()
                         HStack(spacing: 8) {
                             Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(Color(hex: "00CEC9"))
+                                .foregroundStyle(AppleTheme.green)
                             Text(toast)
-                                .font(.subheadline.bold())
-                                .foregroundStyle(.white)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(AppleTheme.primaryText)
                         }
-                        .padding(.horizontal, 18)
-                        .padding(.vertical, 12)
-                        .background(Color(hex: "1F1D36").opacity(0.95))
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(.ultraThinMaterial)
                         .clipShape(Capsule())
-                        .overlay(Capsule().stroke(Color(hex: "00CEC9").opacity(0.5), lineWidth: 1))
-                        .shadow(color: Color.black.opacity(0.3), radius: 10, y: 4)
+                        .overlay(Capsule().stroke(AppleTheme.separator.opacity(0.2), lineWidth: 0.5))
+                        .shadow(color: Color.black.opacity(0.12), radius: 8, y: 4)
                         .padding(.bottom, 24)
                     }
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
-            .navigationTitle("Tài Liệu Số Hóa")
+            .navigationTitle("Tài Liệu Đã Số Hóa")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -161,46 +120,57 @@ struct ResultTabView: View {
                             Image(systemName: "chevron.left")
                             Text("Chụp mới")
                         }
-                        .font(.subheadline.bold())
-                        .foregroundStyle(Color(hex: "00CEC9"))
+                        .foregroundStyle(AppleTheme.blue)
                     }
                 }
 
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    // Export Menu (Apple HIG Menu style)
+                    Menu {
+                        Button {
+                            exportPDF(format: .documentA4)
+                        } label: {
+                            Label("Xuất PDF In Ấn (A4)", systemImage: "doc.text")
+                        }
+
+                        Button {
+                            exportPDF(format: .presentation16x9)
+                        } label: {
+                            Label("Xuất Slide PDF (16:9)", systemImage: "rectangle.inset.filled.and.person.filled")
+                        }
+
+                        Button {
+                            exportMarkdownFile()
+                        } label: {
+                            Label("Xuất Tệp Markdown (.md)", systemImage: "arrow.down.doc")
+                        }
+
+                        Divider()
+
+                        Button {
+                            exportShareText()
+                        } label: {
+                            Label("Sao Chép Toàn Bộ Văn Bản", systemImage: "doc.on.doc")
+                        }
+                    } label: {
+                        Image(systemName: "arrow.up.doc")
+                            .font(.body.weight(.medium))
+                            .foregroundStyle(AppleTheme.blue)
+                    }
+
+                    // Share button
                     Button {
                         exportShareText()
                     } label: {
                         Image(systemName: "square.and.arrow.up")
-                            .foregroundStyle(.white)
+                            .font(.body.weight(.medium))
+                            .foregroundStyle(AppleTheme.blue)
                     }
                 }
             }
             .sheet(isPresented: $showExportSheet) {
                 ShareSheet(items: shareItems)
             }
-        }
-    }
-
-    private func tabColor(for tab: ResultTabSelection) -> LinearGradient {
-        switch tab {
-        case .summary:
-            return LinearGradient(
-                colors: [Color(hex: "6C5CE7"), Color(hex: "FD79A8")],
-                startPoint: .leading,
-                endPoint: .trailing
-            )
-        case .lecture:
-            return LinearGradient(
-                colors: [Color(hex: "6C5CE7"), Color(hex: "00CEC9")],
-                startPoint: .leading,
-                endPoint: .trailing
-            )
-        case .mindmap:
-            return LinearGradient(
-                colors: [Color(hex: "00CEC9"), Color(hex: "6C5CE7")],
-                startPoint: .leading,
-                endPoint: .trailing
-            )
         }
     }
 
@@ -215,7 +185,7 @@ struct ResultTabView: View {
             try pdfData.write(to: tempURL)
             shareItems = [tempURL]
             showExportSheet = true
-            showToast(format == .documentA4 ? "Đã tạo file PDF A4 sẵn sàng lưu/chia sẻ!" : "Đã tạo file Slide PDF 16:9!")
+            showToast(format == .documentA4 ? "Đã tạo file PDF A4 sẵn sàng lưu!" : "Đã tạo file Slide PDF 16:9!")
         } catch {
             print("Failed to save PDF: \(error)")
         }
@@ -224,7 +194,7 @@ struct ResultTabView: View {
     private func exportMarkdownFile() {
         let mdContent = """
         # TÀI LIỆU BÀI GIẢNG ĐÃ SỐ HÓA
-        *Ngày tạo: \(Date().formatted())*
+        *Mô hình xử lý: \(session.modelUsed) • Ngày: \(Date().formatted())*
 
         ## ⚡ TÓM TẮT CỐT LÕI (ÔN THI)
         \(session.summaryPoints.enumerated().map { "- \($1)" }.joined(separator: "\n"))
@@ -245,7 +215,7 @@ struct ResultTabView: View {
             try mdContent.write(to: tempURL, atomically: true, encoding: .utf8)
             shareItems = [tempURL]
             showExportSheet = true
-            showToast("Đã tạo file Markdown (.md)!")
+            showToast("Đã tạo tệp Markdown (.md) thành công!")
         } catch {
             print("Failed to save Markdown: \(error)")
         }
@@ -272,40 +242,10 @@ struct ResultTabView: View {
         withAnimation {
             exportSuccessToast = message
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.2) {
             withAnimation {
                 exportSuccessToast = nil
             }
-        }
-    }
-}
-
-// MARK: - Export Action Button
-
-private struct ExportActionButton: View {
-    let icon: String
-    let title: String
-    let color: Color
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 5) {
-                Image(systemName: icon)
-                    .font(.caption2)
-                Text(title)
-                    .font(.caption2.bold())
-            }
-            .foregroundStyle(color)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
-            .frame(maxWidth: .infinity)
-            .background(color.opacity(0.12))
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(color.opacity(0.25), lineWidth: 1)
-            )
         }
     }
 }

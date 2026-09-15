@@ -3,6 +3,7 @@
 //  camera ai
 //
 //  Created by vdt on 15/9/26.
+//  Redesigned following Apple Human Interface Guidelines (Apple Design System)
 //
 
 import SwiftUI
@@ -13,53 +14,47 @@ struct SummaryTabView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 16) {
+            VStack(spacing: 14) {
                 // Header Banner
                 HStack(spacing: 12) {
                     ZStack {
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .fill(Color(hex: "FD79A8").opacity(0.18))
-                            .frame(width: 44, height: 44)
+                        Circle()
+                            .fill(AppleTheme.blue.opacity(0.12))
+                            .frame(width: 40, height: 40)
 
                         Image(systemName: "bolt.fill")
-                            .font(.title3.bold())
-                            .foregroundStyle(Color(hex: "FD79A8"))
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(AppleTheme.blue)
                     }
 
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Điểm Nhấn Ôn Thi Cấp Tốc")
-                            .font(.headline.bold())
-                            .foregroundStyle(.white)
+                        Text("Điểm Nhấn Ôn Tập Cốt Lõi")
+                            .font(.headline)
+                            .foregroundStyle(AppleTheme.primaryText)
 
-                        Text("Các khái niệm cốt lõi & định nghĩa được AI chắt lọc ngắn gọn.")
-                            .font(.caption)
-                            .foregroundStyle(.white.opacity(0.7))
+                        Text("Các khái niệm định nghĩa và ý chính được chắt lọc ngắn gọn.")
+                            .font(.footnote)
+                            .foregroundStyle(AppleTheme.secondaryText)
                     }
 
                     Spacer()
                 }
-                .padding(14)
-                .background(Color.white.opacity(0.05))
-                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .stroke(Color.white.opacity(0.1), lineWidth: 1)
-                )
+                .appleCardStyle(padding: 12)
 
                 if summaryPoints.isEmpty {
                     VStack(spacing: 12) {
                         Image(systemName: "doc.text.magnifyingglass")
-                            .font(.system(size: 44))
-                            .foregroundStyle(.white.opacity(0.3))
+                            .font(.system(size: 36))
+                            .foregroundStyle(AppleTheme.secondaryText.opacity(0.5))
                         Text("Không có nội dung tóm tắt.")
                             .font(.subheadline)
-                            .foregroundStyle(.white.opacity(0.6))
+                            .foregroundStyle(AppleTheme.secondaryText)
                     }
-                    .padding(.vertical, 60)
+                    .padding(.vertical, 40)
                 } else {
-                    // Summary Point Cards
+                    // Summary Cards
                     ForEach(Array(summaryPoints.enumerated()), id: \.offset) { index, point in
-                        SummaryCardView(
+                        AppleSummaryCard(
                             index: index + 1,
                             text: point,
                             isCopied: copiedIndex == index
@@ -77,13 +72,14 @@ struct SummaryTabView: View {
                     }
                 }
             }
-            .padding(16)
-            .padding(.bottom, 30)
+            .padding(.horizontal, 16)
+            .padding(.top, 4)
+            .padding(.bottom, 28)
         }
     }
 }
 
-private struct SummaryCardView: View {
+private struct AppleSummaryCard: View {
     let index: Int
     let text: String
     let isCopied: Bool
@@ -92,73 +88,44 @@ private struct SummaryCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                // Badge
+                // Number Indicator Pill
                 HStack(spacing: 4) {
-                    Image(systemName: "number.circle.fill")
-                        .font(.caption2)
-                    Text("Ý CỐT LÕI \(index)")
-                        .font(.caption2.bold())
+                    Text("\(index)")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(AppleTheme.blue)
+                        .frame(width: 18, height: 18)
+                        .background(AppleTheme.blue.opacity(0.12))
+                        .clipShape(Circle())
+
+                    Text("Ý CỐT LÕI")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(AppleTheme.secondaryText)
                 }
-                .foregroundStyle(Color(hex: "A29BFE"))
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
-                .background(Color(hex: "6C5CE7").opacity(0.2))
-                .clipShape(Capsule())
 
                 Spacer()
 
-                // Copy Action Button
+                // Copy Button
                 Button(action: onCopy) {
-                    HStack(spacing: 4) {
+                    HStack(spacing: 3) {
                         Image(systemName: isCopied ? "checkmark" : "doc.on.doc")
-                            .font(.caption)
-                        Text(isCopied ? "Đã chép" : "Sao chép")
-                            .font(.caption2.bold())
+                            .font(.caption2)
+                        Text(isCopied ? "Đã chép" : "Chép")
+                            .font(.caption2.weight(.medium))
                     }
-                    .foregroundStyle(isCopied ? Color(hex: "00CEC9") : .white.opacity(0.6))
+                    .foregroundStyle(isCopied ? AppleTheme.green : AppleTheme.blue)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
-                    .background(Color.white.opacity(0.08))
+                    .background(isCopied ? AppleTheme.green.opacity(0.1) : AppleTheme.blue.opacity(0.08))
                     .clipShape(Capsule())
                 }
             }
 
-            // Bullet Point Text
-            HStack(alignment: .top, spacing: 10) {
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [Color(hex: "6C5CE7"), Color(hex: "00CEC9")],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: 8, height: 8)
-                    .padding(.top, 6)
-
-                Text(text)
-                    .font(.system(.body, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.95))
-                    .lineSpacing(4)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            Text(text)
+                .font(.subheadline)
+                .foregroundStyle(AppleTheme.primaryText)
+                .lineSpacing(3)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color(hex: "17162C").opacity(0.9))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .stroke(
-                            LinearGradient(
-                                colors: [Color(hex: "6C5CE7").opacity(0.4), Color.white.opacity(0.08)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ),
-                            lineWidth: 1
-                        )
-                )
-        )
-        .shadow(color: Color.black.opacity(0.25), radius: 8, x: 0, y: 4)
+        .appleCardStyle(padding: 14)
     }
 }

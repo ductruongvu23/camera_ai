@@ -16,6 +16,8 @@ struct ScanSession: Identifiable {
     var formattedContent: String     // Markdown-formatted lecture content from Gemini
     var summaryPoints: [String]      // Key summary bullet points from Gemini
     var mindmap: MindMapNode?        // Mind Map tree structure from Gemini
+    var modelUsed: String            // The exact Gemini model that generated this response
+    var isFallbackUsed: Bool         // True if the requested model was overloaded and fallback was used
     var createdAt: Date
 
     init(
@@ -25,6 +27,8 @@ struct ScanSession: Identifiable {
         formattedContent: String = "",
         summaryPoints: [String] = [],
         mindmap: MindMapNode? = nil,
+        modelUsed: String = "gemini-2.5-flash",
+        isFallbackUsed: Bool = false,
         createdAt: Date = .now
     ) {
         self.images = images
@@ -33,6 +37,8 @@ struct ScanSession: Identifiable {
         self.formattedContent = formattedContent
         self.summaryPoints = summaryPoints
         self.mindmap = mindmap
+        self.modelUsed = modelUsed
+        self.isFallbackUsed = isFallbackUsed
         self.createdAt = createdAt
     }
 

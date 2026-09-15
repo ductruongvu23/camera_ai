@@ -3,13 +3,13 @@
 //  camera ai
 //
 //  Created by vdt on 15/9/26.
+//  Redesigned following Apple Human Interface Guidelines (Apple Design System)
 //
 
 import SwiftUI
 
-/// Mode for viewing the Mind Map
 enum MindMapViewMode: String, CaseIterable {
-    case tree = "Sơ Đồ Phân Nhánh"
+    case tree = "Sơ Đồ Cây"
     case outline = "Danh Sách Thẻ"
 
     var icon: String {
@@ -20,8 +20,7 @@ enum MindMapViewMode: String, CaseIterable {
     }
 }
 
-/// Interactive Mind Map view supporting visual tree diagram with smooth connections,
-/// expandable branches, zoom/pan controls, outline view, and text outline export.
+/// Interactive Mind Map view designed with Apple Freeform aesthetics
 struct MindMapTabView: View {
     let rootNode: MindMapNode
 
@@ -32,20 +31,20 @@ struct MindMapTabView: View {
     @State private var showShareSheet: Bool = false
     @State private var shareItems: [Any] = []
 
-    // Palette for distinct branch themes
+    // Apple HIG refined palette for branches
     private let branchColors: [Color] = [
-        Color(hex: "00CEC9"), // Cyan
-        Color(hex: "6C5CE7"), // Purple
-        Color(hex: "FD79A8"), // Pink
-        Color(hex: "FFA502"), // Amber / Orange
-        Color(hex: "2ED573"), // Emerald
-        Color(hex: "1E90FF")  // Royal Blue
+        AppleTheme.blue,
+        AppleTheme.indigo,
+        AppleTheme.teal,
+        AppleTheme.orange,
+        AppleTheme.green,
+        AppleTheme.purple
     ]
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header controls: View mode switcher & quick actions
-            MindMapControlBar(
+            // Apple Native Control Bar
+            AppleMindMapControlBar(
                 viewMode: $viewMode,
                 zoomScale: $zoomScale,
                 onCopyOutline: copyOutline,
@@ -58,7 +57,7 @@ struct MindMapTabView: View {
             // Content Area based on selected mode
             ZStack {
                 if viewMode == .tree {
-                    MindMapTreeCanvasView(
+                    AppleMindMapCanvasView(
                         rootNode: rootNode,
                         branchColors: branchColors,
                         zoomScale: $zoomScale,
@@ -66,7 +65,7 @@ struct MindMapTabView: View {
                         onToggleCollapse: toggleCollapse
                     )
                 } else {
-                    MindMapOutlineListView(
+                    AppleMindMapOutlineView(
                         rootNode: rootNode,
                         branchColors: branchColors,
                         collapsedNodeIds: $collapsedNodeIds,
@@ -74,23 +73,23 @@ struct MindMapTabView: View {
                     )
                 }
 
-                // Toast notification
+                // Apple-style Toast Notification
                 if let toast = copyToastMessage {
                     VStack {
                         Spacer()
                         HStack(spacing: 8) {
                             Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(Color(hex: "00CEC9"))
+                                .foregroundStyle(AppleTheme.green)
                             Text(toast)
-                                .font(.subheadline.bold())
-                                .foregroundStyle(.white)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(AppleTheme.primaryText)
                         }
                         .padding(.horizontal, 16)
                         .padding(.vertical, 10)
-                        .background(Color(hex: "1F1D36").opacity(0.95))
+                        .background(.ultraThinMaterial)
                         .clipShape(Capsule())
-                        .overlay(Capsule().stroke(Color(hex: "00CEC9").opacity(0.5), lineWidth: 1))
-                        .shadow(color: Color.black.opacity(0.3), radius: 8, y: 4)
+                        .overlay(Capsule().stroke(AppleTheme.separator.opacity(0.2), lineWidth: 0.5))
+                        .shadow(color: Color.black.opacity(0.12), radius: 8, y: 4)
                         .padding(.bottom, 20)
                     }
                     .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -115,7 +114,7 @@ struct MindMapTabView: View {
     private func copyOutline() {
         let text = MindMapBuilder.toOutlineText(rootNode)
         UIPasteboard.general.string = text
-        showToast("Đã sao chép Sơ Đồ Tư Duy vào bộ nhớ tạm!")
+        showToast("Đã sao chép sơ đồ tư duy vào bộ nhớ tạm!")
     }
 
     private func shareOutline() {
@@ -128,7 +127,7 @@ struct MindMapTabView: View {
         withAnimation {
             copyToastMessage = message
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.2) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
             withAnimation {
                 copyToastMessage = nil
             }
@@ -136,107 +135,86 @@ struct MindMapTabView: View {
     }
 }
 
-// MARK: - Control Bar
+// MARK: - Apple Control Bar
 
-private struct MindMapControlBar: View {
+private struct AppleMindMapControlBar: View {
     @Binding var viewMode: MindMapViewMode
     @Binding var zoomScale: CGFloat
     let onCopyOutline: () -> Void
     let onShare: () -> Void
 
     var body: some View {
-        HStack(spacing: 8) {
-            // View Mode Picker
-            HStack(spacing: 4) {
+        HStack(spacing: 10) {
+            // Native Apple Segmented Picker
+            Picker("Chế độ xem", selection: $viewMode) {
                 ForEach(MindMapViewMode.allCases, id: \.self) { mode in
-                    Button {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                            viewMode = mode
-                        }
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: mode.icon)
-                                .font(.caption2)
-                            Text(mode.rawValue)
-                                .font(.caption2.bold())
-                        }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 7)
-                        .foregroundStyle(viewMode == mode ? .white : .white.opacity(0.6))
-                        .background(
-                            viewMode == mode ?
-                            Color(hex: "6C5CE7") : Color.clear
-                        )
-                        .clipShape(Capsule())
-                    }
+                    Label(mode.rawValue, systemImage: mode.icon)
+                        .tag(mode)
                 }
             }
-            .padding(3)
-            .background(Color.white.opacity(0.06))
-            .clipShape(Capsule())
+            .pickerStyle(.segmented)
+            .frame(maxWidth: 220)
 
             Spacer()
 
             if viewMode == .tree {
-                // Zoom Controls
-                HStack(spacing: 4) {
+                // Apple Zoom Controls
+                HStack(spacing: 2) {
                     Button {
-                        withAnimation {
+                        withAnimation(.spring(response: 0.25)) {
                             zoomScale = max(0.6, zoomScale - 0.15)
                         }
                     } label: {
                         Image(systemName: "minus.magnifyingglass")
-                            .font(.caption2)
-                            .foregroundStyle(.white.opacity(0.8))
+                            .font(.caption)
+                            .foregroundStyle(AppleTheme.primaryText)
                             .frame(width: 28, height: 28)
-                            .background(Color.white.opacity(0.08))
-                            .clipShape(Circle())
                     }
 
                     Button {
-                        withAnimation {
+                        withAnimation(.spring(response: 0.25)) {
                             zoomScale = 1.0
                         }
                     } label: {
                         Text("\(Int(zoomScale * 100))%")
                             .font(.system(size: 10, weight: .bold, design: .monospaced))
-                            .foregroundStyle(Color(hex: "00CEC9"))
+                            .foregroundStyle(AppleTheme.blue)
                             .frame(minWidth: 32)
                     }
 
                     Button {
-                        withAnimation {
+                        withAnimation(.spring(response: 0.25)) {
                             zoomScale = min(1.8, zoomScale + 0.15)
                         }
                     } label: {
                         Image(systemName: "plus.magnifyingglass")
-                            .font(.caption2)
-                            .foregroundStyle(.white.opacity(0.8))
+                            .font(.caption)
+                            .foregroundStyle(AppleTheme.primaryText)
                             .frame(width: 28, height: 28)
-                            .background(Color.white.opacity(0.08))
-                            .clipShape(Circle())
                     }
                 }
-                .padding(.trailing, 2)
+                .padding(.horizontal, 4)
+                .background(AppleTheme.secondaryBackground)
+                .clipShape(Capsule())
             }
 
-            // Copy Outline Button
+            // Copy Button
             Button(action: onCopyOutline) {
-                Image(systemName: "doc.on.doc.fill")
-                    .font(.caption2)
-                    .foregroundStyle(Color(hex: "00CEC9"))
+                Image(systemName: "doc.on.doc")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(AppleTheme.blue)
                     .frame(width: 30, height: 30)
-                    .background(Color(hex: "00CEC9").opacity(0.15))
+                    .background(AppleTheme.secondaryBackground)
                     .clipShape(Circle())
             }
 
             // Share Button
             Button(action: onShare) {
                 Image(systemName: "square.and.arrow.up")
-                    .font(.caption2)
-                    .foregroundStyle(.white)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(AppleTheme.blue)
                     .frame(width: 30, height: 30)
-                    .background(Color.white.opacity(0.12))
+                    .background(AppleTheme.secondaryBackground)
                     .clipShape(Circle())
             }
         }
@@ -245,7 +223,7 @@ private struct MindMapControlBar: View {
 
 // MARK: - Tree Canvas View
 
-private struct MindMapTreeCanvasView: View {
+private struct AppleMindMapCanvasView: View {
     let rootNode: MindMapNode
     let branchColors: [Color]
     @Binding var zoomScale: CGFloat
@@ -254,37 +232,124 @@ private struct MindMapTreeCanvasView: View {
 
     var body: some View {
         ScrollView([.horizontal, .vertical], showsIndicators: true) {
-            HStack(alignment: .center, spacing: 50) {
-                // Central Root Node
-                MindMapRootNodeView(title: rootNode.title)
+            HStack(alignment: .center, spacing: 44) {
+                // Root Node Card
+                VStack(spacing: 6) {
+                    Image(systemName: "brain.head.profile")
+                        .font(.system(size: 24, weight: .bold))
+                        .foregroundStyle(AppleTheme.blue)
+
+                    Text(rootNode.title)
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(AppleTheme.primaryText)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(3)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: 160)
+
+                    Text("CHỦ ĐỀ TRUNG TÂM")
+                        .font(.system(size: 8, weight: .heavy))
+                        .foregroundStyle(AppleTheme.secondaryText)
+                        .tracking(1)
+                }
+                .appleCardStyle(padding: 18)
+                .shadow(color: AppleTheme.blue.opacity(0.15), radius: 10, y: 4)
 
                 // Branches Column
-                VStack(alignment: .leading, spacing: 28) {
+                VStack(alignment: .leading, spacing: 22) {
                     ForEach(Array(rootNode.children.enumerated()), id: \.element.id) { index, branch in
                         let color = branchColors[index % branchColors.count]
-                        MindMapBranchRowView(
-                            branch: branch,
-                            accentColor: color,
-                            isCollapsed: collapsedNodeIds.contains(branch.id),
-                            onToggleCollapse: { onToggleCollapse(branch.id) }
-                        )
+                        let isCollapsed = collapsedNodeIds.contains(branch.id)
+
+                        HStack(alignment: .center, spacing: 28) {
+                            // Branch Node Card
+                            Button {
+                                onToggleCollapse(branch.id)
+                            } label: {
+                                HStack(spacing: 10) {
+                                    Circle()
+                                        .fill(color)
+                                        .frame(width: 9, height: 9)
+
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(branch.title)
+                                            .font(.subheadline.weight(.semibold))
+                                            .foregroundStyle(AppleTheme.primaryText)
+                                            .multilineTextAlignment(.leading)
+                                            .frame(maxWidth: 180, alignment: .leading)
+
+                                        if let details = branch.details, !details.isEmpty {
+                                            Text(details)
+                                                .font(.caption2)
+                                                .foregroundStyle(AppleTheme.secondaryText)
+                                                .lineLimit(2)
+                                                .frame(maxWidth: 180, alignment: .leading)
+                                        }
+                                    }
+
+                                    if !branch.children.isEmpty {
+                                        Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
+                                            .font(.caption2.bold())
+                                            .foregroundStyle(color)
+                                    }
+                                }
+                                .appleCardStyle(padding: 12)
+                            }
+                            .buttonStyle(.plain)
+
+                            // Leaf Nodes
+                            if !isCollapsed && !branch.children.isEmpty {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    ForEach(branch.children) { child in
+                                        HStack(spacing: 8) {
+                                            RoundedRectangle(cornerRadius: 2)
+                                                .fill(color)
+                                                .frame(width: 3, height: 14)
+
+                                            VStack(alignment: .leading, spacing: 2) {
+                                                Text(child.title)
+                                                    .font(.caption.weight(.medium))
+                                                    .foregroundStyle(AppleTheme.primaryText)
+                                                    .lineLimit(3)
+                                                    .frame(maxWidth: 200, alignment: .leading)
+
+                                                if let details = child.details, !details.isEmpty {
+                                                    Text(details)
+                                                        .font(.system(size: 10))
+                                                        .foregroundStyle(AppleTheme.secondaryText)
+                                                }
+                                            }
+                                        }
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 7)
+                                        .background(AppleTheme.secondaryBackground)
+                                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                                .stroke(AppleTheme.separator.opacity(0.2), lineWidth: 0.5)
+                                        )
+                                    }
+                                }
+                                .transition(.opacity.combined(with: .scale(scale: 0.95, anchor: .leading)))
+                            }
+                        }
                     }
                 }
             }
-            .padding(40)
+            .padding(36)
             .scaleEffect(zoomScale, anchor: .topLeading)
             .animation(.spring(response: 0.3, dampingFraction: 0.8), value: zoomScale)
         }
         .background(
             ZStack {
-                Color(hex: "0D0B1C")
+                AppleTheme.background
                 // Subtle dot grid background pattern
                 Canvas { context, size in
                     let dotSpacing: CGFloat = 24
                     for x in stride(from: 0, to: size.width, by: dotSpacing) {
                         for y in stride(from: 0, to: size.height, by: dotSpacing) {
-                            let rect = CGRect(x: x, y: y, width: 1.5, height: 1.5)
-                            context.fill(Path(ellipseIn: rect), with: .color(Color.white.opacity(0.04)))
+                            let rect = CGRect(x: x, y: y, width: 1.2, height: 1.2)
+                            context.fill(Path(ellipseIn: rect), with: .color(AppleTheme.separator.opacity(0.25)))
                         }
                     }
                 }
@@ -293,153 +358,9 @@ private struct MindMapTreeCanvasView: View {
     }
 }
 
-// MARK: - Root Node View
+// MARK: - Outline View
 
-private struct MindMapRootNodeView: View {
-    let title: String
-
-    var body: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "brain.head.profile")
-                .font(.system(size: 26, weight: .bold))
-                .foregroundStyle(.white)
-
-            Text(title)
-                .font(.system(.headline, design: .rounded).bold())
-                .foregroundStyle(.white)
-                .multilineTextAlignment(.center)
-                .lineLimit(3)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: 160)
-
-            Text("CHỦ ĐỀ TRUNG TÂM")
-                .font(.system(size: 8, weight: .heavy, design: .rounded))
-                .foregroundStyle(.white.opacity(0.7))
-                .tracking(1.2)
-        }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 20)
-        .background(
-            LinearGradient(
-                colors: [Color(hex: "6C5CE7"), Color(hex: "FD79A8")],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .stroke(Color.white.opacity(0.4), lineWidth: 1.5)
-        )
-        .shadow(color: Color(hex: "6C5CE7").opacity(0.5), radius: 16, x: 0, y: 8)
-    }
-}
-
-// MARK: - Branch Row View (Level 1 + Level 2)
-
-private struct MindMapBranchRowView: View {
-    let branch: MindMapNode
-    let accentColor: Color
-    let isCollapsed: Bool
-    let onToggleCollapse: () -> Void
-
-    var body: some View {
-        HStack(alignment: .center, spacing: 32) {
-            // Level 1: Branch Node Card
-            Button(action: onToggleCollapse) {
-                HStack(spacing: 10) {
-                    Circle()
-                        .fill(accentColor)
-                        .frame(width: 10, height: 10)
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(branch.title)
-                            .font(.system(.subheadline, design: .rounded).bold())
-                            .foregroundStyle(.white)
-                            .multilineTextAlignment(.leading)
-                            .frame(maxWidth: 180, alignment: .leading)
-
-                        if let details = branch.details, !details.isEmpty {
-                            Text(details)
-                                .font(.caption2)
-                                .foregroundStyle(.white.opacity(0.65))
-                                .lineLimit(2)
-                                .frame(maxWidth: 180, alignment: .leading)
-                        }
-                    }
-
-                    if !branch.children.isEmpty {
-                        Image(systemName: isCollapsed ? "chevron.right.circle.fill" : "chevron.down.circle.fill")
-                            .font(.caption)
-                            .foregroundStyle(accentColor)
-                    }
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
-                .background(Color(hex: "1F1D36").opacity(0.9))
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .stroke(accentColor.opacity(0.7), lineWidth: 1.2)
-                )
-                .shadow(color: accentColor.opacity(0.2), radius: 8, x: 0, y: 3)
-            }
-            .buttonStyle(.plain)
-
-            // Level 2: Children Leaf Nodes (if not collapsed)
-            if !isCollapsed && !branch.children.isEmpty {
-                VStack(alignment: .leading, spacing: 10) {
-                    ForEach(branch.children) { child in
-                        MindMapLeafNodeView(node: child, accentColor: accentColor)
-                    }
-                }
-                .transition(.opacity.combined(with: .scale(scale: 0.95, anchor: .leading)))
-            }
-        }
-    }
-}
-
-// MARK: - Leaf Node View (Level 2)
-
-private struct MindMapLeafNodeView: View {
-    let node: MindMapNode
-    let accentColor: Color
-
-    var body: some View {
-        HStack(spacing: 8) {
-            RoundedRectangle(cornerRadius: 2)
-                .fill(accentColor.opacity(0.8))
-                .frame(width: 3, height: 16)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(node.title)
-                    .font(.system(.caption, design: .rounded).weight(.semibold))
-                    .foregroundStyle(.white)
-                    .lineLimit(3)
-                    .frame(maxWidth: 220, alignment: .leading)
-
-                if let details = node.details, !details.isEmpty {
-                    Text(details)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.white.opacity(0.6))
-                        .lineLimit(2)
-                }
-            }
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(Color.white.opacity(0.05))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(Color.white.opacity(0.1), lineWidth: 0.8)
-        )
-    }
-}
-
-// MARK: - Outline List View (Card Mode)
-
-private struct MindMapOutlineListView: View {
+private struct AppleMindMapOutlineView: View {
     let rootNode: MindMapNode
     let branchColors: [Color]
     @Binding var collapsedNodeIds: Set<String>
@@ -452,39 +373,27 @@ private struct MindMapOutlineListView: View {
                 HStack(spacing: 12) {
                     ZStack {
                         Circle()
-                            .fill(
-                                LinearGradient(
-                                    colors: [Color(hex: "6C5CE7"), Color(hex: "FD79A8")],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                            .frame(width: 44, height: 44)
+                            .fill(AppleTheme.blue.opacity(0.12))
+                            .frame(width: 40, height: 40)
 
                         Image(systemName: "brain.head.profile")
-                            .font(.system(size: 20, weight: .bold))
-                            .foregroundStyle(.white)
+                            .font(.body.weight(.bold))
+                            .foregroundStyle(AppleTheme.blue)
                     }
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text("CHỦ ĐỀ TRUNG TÂM")
-                            .font(.system(size: 9, weight: .heavy, design: .rounded))
-                            .foregroundStyle(Color(hex: "00CEC9"))
+                            .font(.system(size: 9, weight: .heavy))
+                            .foregroundStyle(AppleTheme.blue)
                             .tracking(1)
 
                         Text(rootNode.title)
-                            .font(.system(.headline, design: .rounded).bold())
-                            .foregroundStyle(.white)
+                            .font(.headline.weight(.semibold))
+                            .foregroundStyle(AppleTheme.primaryText)
                     }
                     Spacer()
                 }
-                .padding(14)
-                .background(Color(hex: "1F1D36").opacity(0.85))
-                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .stroke(Color(hex: "6C5CE7").opacity(0.5), lineWidth: 1)
-                )
+                .appleCardStyle(padding: 14)
 
                 // Branch Cards
                 ForEach(Array(rootNode.children.enumerated()), id: \.element.id) { index, branch in
@@ -492,7 +401,6 @@ private struct MindMapOutlineListView: View {
                     let isCollapsed = collapsedNodeIds.contains(branch.id)
 
                     VStack(alignment: .leading, spacing: 10) {
-                        // Branch Header Button
                         Button {
                             onToggleCollapse(branch.id)
                         } label: {
@@ -502,8 +410,8 @@ private struct MindMapOutlineListView: View {
                                     .frame(width: 10, height: 10)
 
                                 Text(branch.title)
-                                    .font(.system(.subheadline, design: .rounded).bold())
-                                    .foregroundStyle(.white)
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(AppleTheme.primaryText)
 
                                 Spacer()
 
@@ -513,12 +421,12 @@ private struct MindMapOutlineListView: View {
                                         .foregroundStyle(color)
                                         .padding(.horizontal, 8)
                                         .padding(.vertical, 3)
-                                        .background(color.opacity(0.15))
+                                        .background(color.opacity(0.12))
                                         .clipShape(Capsule())
 
                                     Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
                                         .font(.caption2.bold())
-                                        .foregroundStyle(.white.opacity(0.6))
+                                        .foregroundStyle(AppleTheme.secondaryText)
                                 }
                             }
                         }
@@ -527,11 +435,10 @@ private struct MindMapOutlineListView: View {
                         if let details = branch.details, !details.isEmpty {
                             Text(details)
                                 .font(.caption)
-                                .foregroundStyle(.white.opacity(0.7))
+                                .foregroundStyle(AppleTheme.secondaryText)
                                 .padding(.leading, 20)
                         }
 
-                        // Branch Children
                         if !isCollapsed && !branch.children.isEmpty {
                             VStack(alignment: .leading, spacing: 8) {
                                 ForEach(branch.children) { child in
@@ -542,13 +449,13 @@ private struct MindMapOutlineListView: View {
 
                                         VStack(alignment: .leading, spacing: 2) {
                                             Text(child.title)
-                                                .font(.system(.caption, design: .rounded).weight(.medium))
-                                                .foregroundStyle(.white.opacity(0.9))
+                                                .font(.caption)
+                                                .foregroundStyle(AppleTheme.primaryText)
 
                                             if let details = child.details, !details.isEmpty {
                                                 Text(details)
                                                     .font(.system(size: 10))
-                                                    .foregroundStyle(.white.opacity(0.55))
+                                                    .foregroundStyle(AppleTheme.secondaryText)
                                             }
                                         }
                                     }
@@ -558,22 +465,17 @@ private struct MindMapOutlineListView: View {
                             .padding(.top, 4)
                         }
                     }
-                    .padding(14)
-                    .background(Color.white.opacity(0.04))
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .stroke(color.opacity(0.3), lineWidth: 1)
-                    )
+                    .appleCardStyle(padding: 14)
                 }
             }
-            .padding(16)
+            .padding(.horizontal, 16)
+            .padding(.top, 4)
+            .padding(.bottom, 28)
         }
     }
 }
 
-// MARK: - Activity View Controller (Share Sheet)
-
+// Activity View Controller
 private struct ActivityViewControllerRepresentable: UIViewControllerRepresentable {
     let items: [Any]
 
